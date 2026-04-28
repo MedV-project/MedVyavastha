@@ -10,6 +10,8 @@ MedVyavastha is a healthcare management platform designed to bridge the critical
 3. Dynamic Resource Allocation: Helps hospitals manage bed availability and specialized equipment based on incoming emergency data.
 4. Unified Dashboard: A minimalist, high-contrast interface for medical professionals to monitor multiple incoming emergencies simultaneously.
 
+website = https://medvyavastha.netlify.app/
+
 👥 The Team
 
 1. Pranshu Aryan – Lead Backend Engineer & Systems Architect Responsible for the end-to-end backend architecture, full Firebase integration, and real-time database management. Acted as the primary debugger, resolving deep-rooted UI/UX bottlenecks and ensuring seamless data flow between the hospital and transit systems.
