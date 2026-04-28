@@ -1,0 +1,2911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="env.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hospital Dashboard — MedVyavastha</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- ✅ Firebase v9 compat (works in plain HTML, no bundler needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<style>
+:root {
+  --bg: #070d1a;
+  --bg2: #0c1424;
+  --bg3: #101d35;
+  --surface: #13213d;
+  --surface2: #1a2c4e;
+  --border: rgba(59,130,246,0.15);
+  --border2: rgba(59,130,246,0.28);
+  --blue: #3b82f6;
+  --blue-bright: #60a5fa;
+  --blue-dim: #1d4ed8;
+  --cyan: #06d6c7;
+  --green: #10d97e;
+  --orange: #f59e0b;
+  --red: #f43f5e;
+  --white: #f0f6ff;
+  --muted: rgba(160,180,220,0.55);
+  --font-display: 'Sora', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+  --glow: 0 0 24px rgba(59,130,246,0.18);
+  --glow-strong: 0 0 40px rgba(59,130,246,0.28);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+body { font-family:var(--font-body); background:var(--bg); color:var(--white); min-height:100vh; overflow-x:hidden; }
+::-webkit-scrollbar { width:6px; }
+::-webkit-scrollbar-track { background:var(--bg2); }
+::-webkit-scrollbar-thumb { background:var(--surface2); border-radius:10px; }
+
+/* ── LOADING SCREEN ── */
+#loadingScreen {
+  position:fixed; inset:0; background:var(--bg); z-index:9999;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+}
+.loading-logo { font-family:var(--font-display); font-size:1.4rem; font-weight:800; color:var(--white); }
+.loading-logo span { color:var(--blue-bright); }
+.loading-bar-track { width:200px; height:3px; background:var(--surface2); border-radius:100px; overflow:hidden; }
+.loading-bar-fill { height:100%; background:linear-gradient(90deg,var(--blue),var(--cyan)); border-radius:100px; animation:loadBar 1.8s ease-in-out infinite; }
+@keyframes loadBar { 0%{width:0%} 60%{width:100%} 100%{width:100%} }
+.loading-sub { font-size:0.78rem; color:var(--muted); }
+
+/* ── LAYOUT ── */
+.app { display:flex; min-height:100vh; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width:240px; flex-shrink:0; background:var(--bg2);
+  border-right:1px solid var(--border);
+  display:flex; flex-direction:column;
+  position:fixed; top:0; left:0; bottom:0; z-index:50;
+}
+.sidebar-logo {
+  padding:24px 20px 20px;
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:12px;
+}
+.logo-icon {
+  width:36px; height:36px; background:var(--blue);
+  border-radius:10px; display:flex; align-items:center; justify-content:center;
+  box-shadow:var(--glow); flex-shrink:0;
+}
+.logo-text { font-family:var(--font-display); font-size:0.88rem; font-weight:700; color:var(--white); line-height:1.2; }
+.logo-text span { color:var(--blue-bright); font-size:0.7rem; font-weight:400; display:block; }
+.sidebar-nav { flex:1; padding:16px 10px; display:flex; flex-direction:column; gap:3px; overflow-y:auto; }
+.nav-section-label { font-size:0.65rem; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; color:var(--muted); padding:12px 10px 6px; }
+.nav-item {
+  display:flex; align-items:center; gap:12px;
+  padding:10px 12px; border-radius:10px;
+  font-size:0.85rem; font-weight:500; color:var(--muted);
+  cursor:pointer; transition:all 0.2s; text-decoration:none;
+  border:1px solid transparent;
+}
+.nav-item:hover { background:var(--surface); color:var(--white); border-color:var(--border); }
+.nav-item.active { background:rgba(59,130,246,0.15); color:var(--blue-bright); border-color:var(--border2); }
+.nav-item svg { width:16px; height:16px; flex-shrink:0; }
+.nav-badge { margin-left:auto; background:var(--red); color:white; font-size:0.65rem; font-weight:700; border-radius:100px; padding:1px 6px; }
+.sidebar-footer { padding:14px 10px; border-top:1px solid var(--border); }
+
+/* logout button */
+.logout-btn {
+  width:100%; padding:9px 12px; background:rgba(244,63,94,0.08);
+  border:1px solid rgba(244,63,94,0.2); border-radius:10px;
+  color:rgba(244,63,94,0.8); font-family:var(--font-body);
+  font-size:0.82rem; font-weight:500; cursor:pointer;
+  display:flex; align-items:center; gap:9px;
+  transition:all 0.2s; margin-top:10px;
+}
+.logout-btn:hover { background:rgba(244,63,94,0.15); border-color:rgba(244,63,94,0.4); color:var(--red); }
+
+/* ── MAIN ── */
+.main { margin-left:240px; flex:1; display:flex; flex-direction:column; min-height:100vh; }
+
+/* ── TOPBAR ── */
+.topbar {
+  height:60px; background:var(--bg2); border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 28px; position:sticky; top:0; z-index:40;
+}
+.topbar-left { display:flex; align-items:center; gap:14px; }
+.topbar-title { font-family:var(--font-display); font-size:0.95rem; font-weight:700; }
+.topbar-subtitle { font-size:0.78rem; color:var(--muted); }
+.topbar-right { display:flex; align-items:center; gap:12px; }
+.topbar-pill {
+  display:flex; align-items:center; gap:7px;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:100px; padding:6px 14px; font-size:0.78rem;
+}
+.pulse-dot {
+  width:8px; height:8px; border-radius:50%; background:var(--green);
+  box-shadow:0 0 8px var(--green); flex-shrink:0;
+  animation:pulse 2s infinite;
+}
+.pulse-dot.yellow { background:var(--orange); box-shadow:0 0 8px var(--orange); }
+.pulse-dot.red { background:var(--red); box-shadow:0 0 8px var(--red); }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(0.85)} }
+.topbar-save-btn {
+  padding:8px 18px; background:var(--blue); color:white;
+  border:none; border-radius:8px; font-family:var(--font-body);
+  font-size:0.82rem; font-weight:600; cursor:pointer;
+  transition:all 0.2s; display:flex; align-items:center; gap:7px;
+  box-shadow:var(--glow);
+}
+.topbar-save-btn:hover { background:#2563eb; transform:translateY(-1px); box-shadow:var(--glow-strong); }
+.topbar-save-btn:active { transform:translateY(0); }
+.topbar-save-btn.saved { background:var(--green); box-shadow:0 0 20px rgba(16,217,126,0.3); }
+.last-updated { font-size:0.72rem; color:var(--muted); font-family:var(--font-mono); }
+.unsaved-chip {
+  display:none; align-items:center; gap:6px;
+  padding:4px 11px; background:rgba(245,158,11,0.12);
+  border:1px solid rgba(245,158,11,0.3); border-radius:100px;
+  font-size:0.72rem; color:var(--orange); font-weight:500;
+}
+.unsaved-chip.visible { display:flex; animation:fadeIn 0.2s ease; }
+
+/* ── CONTENT ── */
+.content { padding:28px; flex:1; }
+.tab-content { display:none; }
+.tab-content.active { display:block; animation:fadeIn 0.25s ease; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+
+/* ── PAGE HEADER ── */
+.page-header { margin-bottom:24px; }
+.page-header h1 { font-family:var(--font-display); font-size:1.4rem; font-weight:800; }
+.page-header p { color:var(--muted); font-size:0.85rem; margin-top:4px; }
+
+/* ── STAT CARDS ── */
+.stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+@media(max-width:1100px){ .stats-row{grid-template-columns:repeat(2,1fr);} }
+.stat-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:14px; padding:18px 20px;
+  transition:all 0.25s; position:relative; overflow:hidden;
+}
+.stat-card:hover { border-color:var(--border2); box-shadow:var(--glow); transform:translateY(-2px); }
+.stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; border-radius:14px 14px 0 0; }
+.stat-card.blue::before { background:linear-gradient(90deg,var(--blue),var(--cyan)); }
+.stat-card.green::before { background:linear-gradient(90deg,var(--green),#06d6a0); }
+.stat-card.orange::before { background:linear-gradient(90deg,var(--orange),#f97316); }
+.stat-card.red::before { background:linear-gradient(90deg,var(--red),#fb7185); }
+.stat-icon { width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.1rem; margin-bottom:14px; }
+.stat-icon.blue-bg { background:rgba(59,130,246,0.15); }
+.stat-icon.green-bg { background:rgba(16,217,126,0.12); }
+.stat-icon.orange-bg { background:rgba(245,158,11,0.12); }
+.stat-icon.red-bg { background:rgba(244,63,94,0.12); }
+.stat-val { font-family:var(--font-display); font-size:2rem; font-weight:800; color:var(--white); line-height:1; }
+.stat-lbl { font-size:0.78rem; color:var(--muted); margin-top:4px; }
+.stat-change { display:flex; align-items:center; gap:5px; font-size:0.72rem; margin-top:8px; font-weight:500; }
+.stat-change.up { color:var(--green); }
+.stat-change.down { color:var(--red); }
+.stat-change.warn { color:var(--orange); }
+
+/* ── SPARKLINES ── */
+.sparkline-row { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:24px; }
+.sparkline-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; }
+.sparkline-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
+.sparkline-val { font-family:var(--font-display); font-size:1.6rem; font-weight:800; }
+.sparkline-lbl { font-size:0.75rem; color:var(--muted); margin-top:2px; }
+svg.sparkline { width:100%; height:44px; }
+
+/* ── SECTION HEADER ── */
+.section-hd { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.section-title { font-family:var(--font-display); font-size:1rem; font-weight:700; }
+.section-title small { font-size:0.75rem; color:var(--muted); font-weight:400; margin-left:8px; font-family:var(--font-body); }
+.pill-btn {
+  padding:6px 14px; border-radius:8px; border:1px solid var(--border2);
+  background:transparent; color:var(--blue-bright); font-size:0.78rem;
+  font-weight:500; cursor:pointer; font-family:var(--font-body);
+  transition:all 0.2s; display:flex; align-items:center; gap:6px;
+}
+.pill-btn:hover { background:rgba(59,130,246,0.1); }
+
+/* ── TABLE ── */
+.occ-table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:hidden; margin-bottom:24px; }
+.occ-table { width:100%; border-collapse:collapse; }
+.occ-table th { background:var(--surface2); padding:11px 16px; text-align:left; font-size:0.7rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); border-bottom:1px solid var(--border); }
+.occ-table td { padding:12px 16px; border-bottom:1px solid rgba(59,130,246,0.07); font-size:0.83rem; vertical-align:middle; }
+.occ-table tr:last-child td { border-bottom:none; }
+.occ-table tr:hover td { background:rgba(59,130,246,0.04); }
+.td-name { font-weight:600; display:flex; align-items:center; gap:10px; }
+.occ-mini-bar { flex:1; height:5px; background:rgba(255,255,255,0.06); border-radius:100px; overflow:hidden; min-width:80px; }
+.occ-mini-fill { height:100%; border-radius:100px; }
+.badge { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:100px; font-size:0.7rem; font-weight:600; }
+.badge-green { background:rgba(16,217,126,0.12); color:var(--green); }
+.badge-yellow { background:rgba(245,158,11,0.12); color:var(--orange); }
+.badge-red { background:rgba(244,63,94,0.12); color:var(--red); }
+
+/* ── RESOURCE GRID ── */
+.resource-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; margin-bottom:24px; }
+@media(max-width:900px){ .resource-grid{grid-template-columns:1fr;} }
+.resource-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:14px; padding:18px; transition:all 0.25s;
+}
+.resource-card:hover { border-color:var(--border2); }
+.res-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.res-icon-name { display:flex; align-items:center; gap:10px; }
+.res-icon { font-size:1.3rem; }
+.res-name { font-weight:600; font-size:0.88rem; }
+.res-sub { font-size:0.7rem; color:var(--muted); }
+.res-status-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.res-status-dot.green { background:var(--green); box-shadow:0 0 6px var(--green); }
+.res-status-dot.yellow { background:var(--orange); box-shadow:0 0 6px var(--orange); }
+.res-status-dot.red { background:var(--red); box-shadow:0 0 6px var(--red); }
+.occ-bar-wrap { margin-bottom:12px; }
+.occ-bar-labels { display:flex; justify-content:space-between; font-size:0.7rem; color:var(--muted); margin-bottom:5px; }
+.occ-bar-track { height:6px; background:rgba(255,255,255,0.06); border-radius:100px; overflow:hidden; }
+.occ-bar-fill { height:100%; border-radius:100px; transition:width 0.5s ease; }
+.occ-bar-fill.low { background:linear-gradient(90deg,var(--green),#06d6a0); }
+.occ-bar-fill.mid { background:linear-gradient(90deg,var(--orange),#f97316); }
+.occ-bar-fill.high { background:linear-gradient(90deg,var(--red),#fb7185); }
+.counter-row { display:flex; align-items:center; gap:0; margin-top:10px; }
+.counter-label { font-size:0.72rem; color:var(--muted); flex:1; }
+.counter-wrap { display:flex; align-items:center; background:var(--bg3); border:1px solid var(--border2); border-radius:8px; overflow:hidden; }
+.counter-btn { width:30px; height:30px; background:transparent; border:none; color:var(--blue-bright); font-size:1.1rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.15s; }
+.counter-btn:hover { background:rgba(59,130,246,0.15); }
+.counter-val { width:44px; text-align:center; background:transparent; border:none; color:var(--white); font-family:var(--font-mono); font-size:0.9rem; font-weight:600; outline:none; padding:0; }
+.counter-val::-webkit-outer-spin-button,.counter-val::-webkit-inner-spin-button { -webkit-appearance:none; }
+.counter-val {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.res-note { font-size:0.7rem; color:var(--muted); margin-top:8px; font-style:italic; }
+
+/* ── UNIT TILES inside resource cards ── */
+.res-units-label { font-size:0.7rem; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; margin:14px 0 8px; }
+.res-units-grid { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px; }
+.unit-tile {
+  width:38px; height:38px; border-radius:8px; border:1.5px solid var(--border2);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  font-family:var(--font-mono); font-size:0.6rem; font-weight:700;
+  cursor:pointer; transition:all 0.18s; user-select:none; position:relative;
+  color:var(--white); line-height:1.1;
+}
+.unit-tile:hover { transform:scale(1.12); z-index:2; box-shadow:0 0 10px rgba(59,130,246,0.3); }
+.unit-tile.available   { background:rgba(16,217,126,0.18); border-color:var(--green); color:var(--green); }
+.unit-tile.occupied    { background:rgba(244,63,94,0.18);  border-color:var(--red);   color:var(--red);   }
+.unit-tile.maintenance { background:rgba(245,158,11,0.18); border-color:var(--orange);color:var(--orange);}
+.unit-tile.unknown     { background:var(--bg3); border-color:var(--border); color:var(--muted); }
+.unit-tile-num  { font-size:0.62rem; font-weight:800; }
+.unit-tile-icon { font-size:0.55rem; margin-top:1px; }
+.res-units-legend { display:flex; gap:10px; font-size:0.68rem; color:var(--muted); flex-wrap:wrap; margin-bottom:6px; }
+.res-units-legend span { display:flex; align-items:center; gap:4px; }
+/* resource card now needs to be wider to fit tiles */
+.resource-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px; transition:all 0.25s; }
+
+
+/* ── ALERT CARDS ── */
+.alert-list { display:flex; flex-direction:column; gap:10px; margin-bottom:24px; }
+.alert-item {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:12px; padding:14px 16px;
+  display:flex; align-items:flex-start; gap:14px;
+  animation:fadeIn 0.3s ease;
+}
+.alert-item.critical { border-color:rgba(244,63,94,0.35); background:rgba(244,63,94,0.05); }
+.alert-item.warning { border-color:rgba(245,158,11,0.35); background:rgba(245,158,11,0.05); }
+.alert-item.info { border-color:rgba(59,130,246,0.3); background:rgba(59,130,246,0.05); }
+.alert-icon-wrap { width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:1rem; flex-shrink:0; }
+.alert-icon-wrap.critical { background:rgba(244,63,94,0.15); }
+.alert-icon-wrap.warning { background:rgba(245,158,11,0.15); }
+.alert-icon-wrap.info { background:rgba(59,130,246,0.15); }
+.alert-text { flex:1; }
+.alert-title { font-weight:600; font-size:0.85rem; }
+.alert-sub { font-size:0.75rem; color:var(--muted); margin-top:2px; }
+.alert-dismiss { background:none; border:none; color:var(--muted); cursor:pointer; font-size:1rem; line-height:1; padding:0; flex-shrink:0; transition:color 0.2s; }
+.alert-dismiss:hover { color:var(--white); }
+
+/* ── CLEANUP OPTION BUTTONS ── */
+.cleanup-option-btn {
+  padding:5px 12px; border-radius:8px; font-size:0.76rem; font-weight:600;
+  border:1px solid var(--border2); background:transparent;
+  color:var(--muted); cursor:pointer; font-family:var(--font-body);
+  transition:all 0.18s;
+}
+.cleanup-option-btn:hover { background:rgba(59,130,246,0.08); color:var(--white); border-color:var(--blue); }
+.cleanup-option-btn.active { background:rgba(59,130,246,0.18); color:var(--blue-bright); border-color:var(--blue); }
+
+/* ── BOOKING ALERT CARDS ── */
+.booking-alert-card {
+  background:var(--surface); border:1px solid var(--border2);
+  border-radius:16px; overflow:hidden;
+  animation:fadeIn 0.35s ease; transition:all 0.2s;
+}
+.booking-alert-card:hover { border-color:rgba(59,130,246,0.4); box-shadow:var(--glow); }
+.booking-alert-card.status-pending { border-left:4px solid var(--orange); }
+.booking-alert-card.status-confirmed { border-left:4px solid var(--green); }
+.booking-alert-card.status-dismissed { opacity:0.55; border-left:4px solid var(--muted); }
+.bac-header {
+  display:flex; align-items:center; gap:14px;
+  padding:14px 18px; cursor:pointer; user-select:none;
+}
+.bac-urgency-badge {
+  padding:4px 11px; border-radius:100px; font-size:0.68rem; font-weight:800;
+  text-transform:uppercase; letter-spacing:0.06em; flex-shrink:0;
+}
+.bac-urgency-badge.Critical { background:rgba(244,63,94,0.18); color:var(--red); border:1px solid rgba(244,63,94,0.3); }
+.bac-urgency-badge.Urgent   { background:rgba(245,158,11,0.18); color:var(--orange); border:1px solid rgba(245,158,11,0.3); }
+.bac-urgency-badge.Planned  { background:rgba(16,217,126,0.12); color:var(--green); border:1px solid rgba(16,217,126,0.25); }
+.bac-title { font-family:var(--font-display); font-size:0.95rem; font-weight:700; flex:1; }
+.bac-meta { font-size:0.72rem; color:var(--muted); margin-top:2px; }
+.bac-time { font-family:var(--font-mono); font-size:0.68rem; color:var(--muted); white-space:nowrap; flex-shrink:0; }
+.bac-expand-icon { color:var(--muted); font-size:0.9rem; transition:transform 0.25s; flex-shrink:0; }
+.booking-alert-card.expanded .bac-expand-icon { transform:rotate(180deg); }
+.bac-body {
+  display:none; padding:0 18px 18px; border-top:1px solid var(--border);
+  padding-top:16px;
+}
+.booking-alert-card.expanded .bac-body { display:block; animation:fadeIn 0.2s ease; }
+.bac-grid {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+  gap:10px; margin-bottom:16px;
+}
+.bac-field { background:var(--bg3); border-radius:10px; padding:11px 14px; }
+.bac-field-label {
+  font-size:0.66rem; font-weight:700; color:var(--muted);
+  text-transform:uppercase; letter-spacing:0.08em; margin-bottom:4px;
+}
+.bac-field-value { font-size:0.85rem; font-weight:600; color:var(--white); line-height:1.4; }
+.bac-field-value.highlight { color:var(--blue-bright); }
+.bac-symptoms-box {
+  background:var(--bg3); border-radius:10px; padding:12px 14px;
+  margin-bottom:14px;
+}
+.bac-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.bac-action-btn {
+  padding:8px 16px; border-radius:8px; font-family:var(--font-body);
+  font-size:0.8rem; font-weight:600; cursor:pointer; transition:all 0.2s;
+  display:flex; align-items:center; gap:6px; border:1px solid;
+}
+.bac-action-btn.call { background:rgba(16,217,126,0.12); border-color:rgba(16,217,126,0.3); color:var(--green); }
+.bac-action-btn.call:hover { background:rgba(16,217,126,0.22); }
+.bac-action-btn.confirm { background:rgba(59,130,246,0.15); border-color:var(--border2); color:var(--blue-bright); }
+.bac-action-btn.confirm:hover { background:rgba(59,130,246,0.25); }
+.bac-action-btn.dismiss { background:transparent; border-color:rgba(244,63,94,0.25); color:rgba(244,63,94,0.7); }
+.bac-action-btn.dismiss:hover { background:rgba(244,63,94,0.1); color:var(--red); }
+.bac-status-pill {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:3px 10px; border-radius:100px; font-size:0.7rem; font-weight:600;
+  background:rgba(245,158,11,0.12); color:var(--orange); border:1px solid rgba(245,158,11,0.25);
+  margin-left:auto;
+}
+.bac-status-pill.confirmed { background:rgba(16,217,126,0.12); color:var(--green); border-color:rgba(16,217,126,0.25); }
+.bac-status-pill.dismissed { background:rgba(160,180,220,0.08); color:var(--muted); border-color:var(--border); }
+
+/* ── OCCUPANCY TABLE ── */
+.inline-num-input { background:var(--bg3); border:1px solid var(--border2); border-radius:6px; color:var(--white); font-family:var(--font-mono); font-size:0.82rem; font-weight:600; width:56px; text-align:center; padding:4px; outline:none; }
+.inline-num-input:focus { border-color:var(--blue); }
+.inline-num-input::-webkit-outer-spin-button,.inline-num-input::-webkit-inner-spin-button { -webkit-appearance:none; }
+
+/* ── WARDS ── */
+.ward-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; margin-bottom:24px; }
+.ward-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px; }
+.ward-top { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:14px; }
+.ward-name { font-family:var(--font-display); font-size:0.95rem; font-weight:700; }
+.ward-dept { font-size:0.72rem; color:var(--muted); margin-top:2px; }
+.ward-nums { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:14px; }
+.ward-num-item { background:var(--bg3); border-radius:8px; padding:10px 8px; text-align:center; }
+.ward-num-val { font-family:var(--font-display); font-size:1.2rem; font-weight:800; }
+.ward-num-lbl { font-size:0.62rem; color:var(--muted); margin-top:2px; }
+.ward-bar { height:6px; background:rgba(255,255,255,0.06); border-radius:100px; overflow:hidden; }
+.ward-bar-fill { height:100%; border-radius:100px; transition:width 0.5s; }
+
+/* ── LOG ── */
+.log-wrap { background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:hidden; margin-bottom:24px; }
+.log-table { width:100%; border-collapse:collapse; }
+.log-table th { background:var(--surface2); padding:11px 16px; text-align:left; font-size:0.7rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); border-bottom:1px solid var(--border); }
+.log-table td { padding:10px 16px; border-bottom:1px solid rgba(59,130,246,0.07); font-size:0.81rem; }
+.log-table tr:last-child td { border-bottom:none; }
+.log-table tr:hover td { background:rgba(59,130,246,0.04); }
+.log-date { font-family:var(--font-mono); font-size:0.73rem; color:var(--muted); }
+
+/* ── DATE FILTER ── */
+.date-row { display:flex; align-items:center; gap:12px; margin-bottom:20px; flex-wrap:wrap; }
+.date-input { background:var(--surface); border:1px solid var(--border2); border-radius:8px; color:var(--white); font-family:var(--font-body); font-size:0.82rem; padding:8px 12px; outline:none; color-scheme:dark; }
+.date-input:focus { border-color:var(--blue); }
+.date-btn { padding:8px 14px; border-radius:8px; border:1px solid var(--border2); background:transparent; color:var(--muted); font-size:0.78rem; font-weight:500; cursor:pointer; font-family:var(--font-body); transition:all 0.2s; }
+.date-btn.active,.date-btn:hover { background:rgba(59,130,246,0.12); color:var(--blue-bright); }
+
+/* ── SETTINGS ── */
+.settings-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px; }
+@media(max-width:800px){ .settings-grid{grid-template-columns:1fr;} }
+.settings-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px; }
+.settings-card h3 { font-family:var(--font-display); font-size:0.92rem; font-weight:700; margin-bottom:16px; display:flex; align-items:center; gap:9px; }
+.form-field { margin-bottom:14px; }
+.form-field label { display:block; font-size:0.75rem; font-weight:500; color:var(--muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.06em; }
+.form-field input, .form-field select, .form-field textarea {
+  width:100%; padding:9px 12px; background:var(--bg3);
+  border:1px solid var(--border2); border-radius:8px;
+  color:var(--white); font-family:var(--font-body); font-size:0.85rem;
+  outline:none; transition:border-color 0.2s;
+}
+.form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color:var(--blue); box-shadow:0 0 0 3px rgba(59,130,246,0.1); }
+.form-field select { color-scheme:dark; cursor:pointer; }
+.form-field textarea { min-height:80px; resize:vertical; }
+.toggle-row { display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--border); }
+.toggle-row:last-child { border-bottom:none; }
+.toggle-label { font-size:0.84rem; }
+.toggle-sub { font-size:0.72rem; color:var(--muted); margin-top:2px; }
+.toggle { position:relative; width:42px; height:24px; flex-shrink:0; }
+.toggle input { opacity:0; width:0; height:0; }
+.toggle-slider { position:absolute; inset:0; border-radius:100px; background:var(--surface2); cursor:pointer; transition:0.25s; border:1px solid var(--border2); }
+.toggle-slider::before { content:''; position:absolute; width:16px; height:16px; background:var(--muted); border-radius:50%; left:3px; top:50%; transform:translateY(-50%); transition:0.25s; }
+.toggle input:checked + .toggle-slider { background:rgba(59,130,246,0.3); border-color:var(--blue); }
+.toggle input:checked + .toggle-slider::before { background:var(--blue-bright); transform:translate(18px,-50%); }
+
+/* ── QR CODES TAB ── */
+.qr-tab-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
+.qr-type-tabs { display:flex; gap:6px; flex-wrap:wrap; }
+.qr-type-btn { padding:7px 14px; border-radius:8px; border:1px solid var(--border2); background:transparent; color:var(--muted); font-size:0.78rem; font-weight:500; cursor:pointer; font-family:var(--font-body); transition:all 0.2s; }
+.qr-type-btn.active, .qr-type-btn:hover { background:rgba(59,130,246,0.15); color:var(--blue-bright); border-color:var(--blue); }
+.qr-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:14px; margin-bottom:24px; }
+.qr-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:14px; padding:18px;
+  display:flex; flex-direction:column; align-items:center; gap:10px;
+  transition:all 0.2s; position:relative;
+}
+.qr-card:hover { border-color:var(--border2); box-shadow:var(--glow); }
+.qr-card-icon { font-size:1.4rem; }
+.qr-card-name { font-size:0.85rem; font-weight:600; text-align:center; }
+.qr-card-id { font-family:var(--font-mono); font-size:0.7rem; color:var(--muted); background:var(--bg3); padding:3px 8px; border-radius:6px; }
+.qr-canvas-wrap { background:white; border-radius:8px; padding:10px; display:flex; align-items:center; justify-content:center; min-width:120px; min-height:120px; }
+.qr-card-btns { display:flex; gap:6px; width:100%; }
+.qr-card-btn { flex:1; padding:7px 0; border-radius:7px; border:1px solid var(--border2); background:transparent; color:var(--muted); font-size:0.72rem; font-weight:500; cursor:pointer; font-family:var(--font-body); transition:all 0.2s; text-align:center; }
+.qr-card-btn:hover { background:rgba(59,130,246,0.12); color:var(--blue-bright); }
+.qr-card-btn.primary { background:var(--blue); color:white; border-color:var(--blue-dim); }
+.qr-card-btn.primary:hover { background:#2563eb; }
+.qr-count-input { display:flex; align-items:center; gap:8px; }
+.qr-count-input input { width:64px; padding:7px 10px; background:var(--bg3); border:1px solid var(--border2); border-radius:7px; color:var(--white); font-family:var(--font-mono); font-size:0.85rem; text-align:center; outline:none; }
+.qr-banner { background:rgba(59,130,246,0.06); border:1px solid var(--border2); border-radius:10px; padding:12px 16px; margin-bottom:20px; font-size:0.82rem; color:var(--blue-bright); display:flex; align-items:center; gap:10px; }
+/* Print label modal */
+.print-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:900; display:none; align-items:center; justify-content:center; padding:1rem; }
+.print-overlay.open { display:flex; }
+.print-modal { background:var(--surface); border:1px solid var(--border2); border-radius:18px; padding:28px; width:100%; max-width:400px; text-align:center; }
+.print-modal h3 { font-family:var(--font-display); font-size:1rem; font-weight:700; margin-bottom:6px; }
+.print-modal p { font-size:0.8rem; color:var(--muted); margin-bottom:20px; }
+.print-label { border:1.5px dashed var(--border2); border-radius:10px; padding:20px; display:flex; flex-direction:column; align-items:center; gap:8px; margin-bottom:20px; background:white; }
+.print-label .pl-hosp { font-size:10px; font-weight:700; color:#666; text-transform:uppercase; letter-spacing:0.06em; }
+.print-label .pl-name { font-size:16px; font-weight:800; color:#111; }
+.print-label .pl-loc  { font-size:11px; color:#666; }
+.print-label .pl-id   { font-family:monospace; font-size:11px; color:#1D4ED8; background:#EFF6FF; padding:2px 8px; border-radius:4px; }
+.print-modal-btns { display:flex; gap:8px; }
+.print-modal-btn { flex:1; padding:10px; border-radius:9px; font-size:13px; font-weight:500; font-family:var(--font-body); cursor:pointer; border:1px solid var(--border2); background:transparent; color:var(--white); transition:all 0.2s; }
+.print-modal-btn.primary { background:var(--blue); border-color:var(--blue-dim); }
+.print-modal-btn.primary:hover { background:#2563eb; }
+.print-modal-btn:not(.primary):hover { background:rgba(244,63,94,0.1); border-color:rgba(244,63,94,0.3); color:var(--red); }
+@media print {
+  body * { visibility:hidden !important; }
+  .print-label, .print-label * { visibility:visible !important; }
+  .print-label { position:fixed !important; inset:0 !important; display:flex !important; align-items:center !important; justify-content:center !important; border:none !important; margin:0 !important; }
+}
+/* ── RESOURCE UPDATES TAB ── */
+.ru-scan-bar {
+  display:flex; align-items:center; gap:12px;
+  background:var(--surface); border:1px solid var(--border2);
+  border-radius:14px; padding:14px 18px; margin-bottom:16px;
+}
+.ru-scan-icon { color:var(--blue-bright); flex-shrink:0; }
+.ru-search-input {
+  flex:1; background:transparent; border:none; outline:none;
+  color:var(--white); font-family:var(--font-body); font-size:0.88rem;
+}
+.ru-search-input::placeholder { color:var(--muted); }
+.ru-filter-row { display:flex; align-items:center; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
+.ru-filter-btn {
+  display:flex; align-items:center; gap:6px;
+  padding:6px 14px; border-radius:100px; border:1px solid var(--border);
+  background:transparent; color:var(--muted); font-size:0.76rem;
+  font-weight:500; cursor:pointer; font-family:var(--font-body); transition:all 0.2s;
+}
+.ru-filter-btn:hover { border-color:var(--border2); color:var(--white); }
+.ru-filter-btn.active { background:rgba(59,130,246,0.15); color:var(--blue-bright); border-color:var(--blue); }
+.ru-dot { display:inline-block; width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+
+/* Grid of resource/bed cards */
+.ru-grid {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+  gap:12px; margin-bottom:28px;
+}
+.ru-empty { text-align:center; padding:60px 20px; color:var(--muted); grid-column:1/-1; }
+.ru-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:14px; padding:16px; cursor:pointer;
+  transition:all 0.22s; position:relative; overflow:hidden;
+}
+.ru-card:hover { border-color:var(--border2); box-shadow:var(--glow); transform:translateY(-2px); }
+.ru-card.selected { border-color:var(--blue); background:rgba(59,130,246,0.08); }
+.ru-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; border-radius:14px 14px 0 0; }
+.ru-card.status-available::before { background:var(--green); }
+.ru-card.status-occupied::before { background:var(--red); }
+.ru-card.status-maintenance::before { background:var(--orange); }
+.ru-card.status-unknown::before { background:var(--muted); }
+.ru-card-top { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:10px; }
+.ru-card-icon { font-size:1.3rem; }
+.ru-card-status-badge {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:3px 9px; border-radius:100px; font-size:0.68rem; font-weight:700;
+}
+.ru-card-status-badge.available   { background:rgba(16,217,126,0.12); color:var(--green); }
+.ru-card-status-badge.occupied    { background:rgba(244,63,94,0.12);  color:var(--red);   }
+.ru-card-status-badge.maintenance { background:rgba(245,158,11,0.12); color:var(--orange);}
+.ru-card-status-badge.unknown     { background:rgba(160,180,220,0.1); color:var(--muted); }
+.ru-card-name { font-weight:700; font-size:0.88rem; margin-bottom:2px; }
+.ru-card-id   { font-family:var(--font-mono); font-size:0.7rem; color:var(--muted); background:var(--bg3); display:inline-block; padding:2px 8px; border-radius:6px; margin-bottom:8px; }
+.ru-card-notes { font-size:0.72rem; color:var(--muted); font-style:italic; min-height:16px; }
+.ru-card-time  { font-family:var(--font-mono); font-size:0.66rem; color:rgba(160,180,220,0.4); margin-top:8px; }
+.ru-card-edit-hint { font-size:0.7rem; color:var(--blue-bright); margin-top:6px; opacity:0; transition:opacity 0.2s; }
+.ru-card:hover .ru-card-edit-hint { opacity:1; }
+
+/* Update panel */
+.ru-update-panel {
+  background:var(--surface); border:1px solid var(--border2);
+  border-radius:16px; padding:22px; margin-bottom:28px;
+  animation:fadeIn 0.25s ease;
+}
+.ru-update-header { display:flex; align-items:flex-start; justify-content:space-between; }
+.ru-status-btn {
+  flex:1; min-width:140px; display:flex; align-items:center; gap:8px; justify-content:center;
+  padding:10px 16px; border-radius:10px; border:1px solid var(--border2);
+  background:var(--bg3); color:var(--muted); font-size:0.83rem; font-weight:600;
+  font-family:var(--font-body); cursor:pointer; transition:all 0.2s;
+}
+.ru-status-btn:hover { border-color:var(--blue); color:var(--white); }
+.ru-status-btn.selected { background:rgba(59,130,246,0.18); border-color:var(--blue-bright); color:var(--white); }
+
+#toast {
+  position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(20px);
+  background:var(--surface2); color:var(--white); padding:12px 22px;
+  border-radius:100px; font-size:0.84rem; font-weight:500;
+  z-index:999; opacity:0; transition:all 0.3s ease;
+  border:1px solid var(--border2); box-shadow:0 8px 32px rgba(0,0,0,0.4);
+  white-space:nowrap; pointer-events:none;
+}
+#toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* info banner */
+.info-banner { background:rgba(59,130,246,0.06); border:1px solid var(--border2); border-radius:10px; padding:12px 16px; margin-bottom:22px; display:flex; align-items:center; gap:10px; font-size:0.82rem; color:var(--blue-bright); }
+</style>
+</head>
+<body>
+
+<!-- ── LOADING SCREEN ── -->
+<div id="loadingScreen">
+  <div class="loading-logo">Med<span>Vyavastha</span></div>
+  <div class="loading-bar-track"><div class="loading-bar-fill"></div></div>
+  <div class="loading-sub" id="loadingMsg">Checking authentication…</div>
+</div>
+
+<div class="app" id="appShell" style="display:none;">
+
+<!-- ═══ SIDEBAR ═══ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><rect x="11" y="4" width="2" height="5" rx="1"/><rect x="11" y="15" width="2" height="5" rx="1"/><rect x="4" y="11" width="5" height="2" rx="1"/><rect x="15" y="11" width="5" height="2" rx="1"/></svg>
+    </div>
+    <div class="logo-text">MedVyavastha<span>Hospital Admin Panel</span></div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Overview</div>
+    <a class="nav-item active" onclick="showTab('overview')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </a>
+    <a class="nav-item" onclick="showTab('resources')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4M17 12h4M12 3v4M12 17v4"/><circle cx="12" cy="12" r="4"/></svg>
+      Resource Manager
+    </a>
+    <a class="nav-item" onclick="showTab('occupancy')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
+      Occupancy
+    </a>
+    <div class="nav-section-label">Operations</div>
+    <a class="nav-item" onclick="showTab('wards')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+      Wards & Depts
+    </a>
+    <a class="nav-item" onclick="showTab('log')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+      Resource Updates
+    </a>
+    <a class="nav-item" onclick="showTab('alerts')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      Alerts
+      <span class="nav-badge" id="alertBadge" style="display:none">0</span>
+    </a>
+    <a class="nav-item" onclick="showTab('qrcodes')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3M17 17h4M14 20h3"/></svg>
+      QR Codes
+    </a>
+    <div class="nav-section-label">Account</div>
+    <a class="nav-item" onclick="showTab('settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Settings
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div style="font-size:0.72rem;color:var(--muted);padding:4px 4px 8px;font-family:var(--font-mono);" id="sidebarEmail">—</div>
+    <button class="logout-btn" onclick="handleLogout()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Logout
+    </button>
+  </div>
+</aside>
+
+<!-- ═══ MAIN ═══ -->
+<main class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <div>
+        <div class="topbar-title" id="topbarHospitalName">Loading…</div>
+        <div class="topbar-subtitle">Last synced: <span id="lastSynced" class="last-updated">—</span></div>
+      </div>
+      <div class="unsaved-chip" id="unsavedChip">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Unsaved changes
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-pill">
+        <div class="pulse-dot" id="statusDot"></div>
+        <span id="statusLabel">Emergency Open</span>
+      </div>
+      <button class="topbar-save-btn" id="saveBtn" onclick="saveAllData()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg>
+        Save to DB
+      </button>
+    </div>
+  </header>
+
+  <div class="content">
+
+    <!-- ═══ OVERVIEW ═══ -->
+    <div class="tab-content active" id="tab-overview">
+      <div class="page-header">
+        <h1>Dashboard Overview</h1>
+        <p>Live snapshot of <span id="ovHospitalName">—</span> — updated <span id="ovLastUpdated">—</span></p>
+      </div>
+      <div class="stats-row" id="statsRow"></div>
+      <div class="sparkline-row" id="sparklineRow"></div>
+      <div class="section-hd">
+        <div class="section-title">Resource Status <small>All departments</small></div>
+        <button class="pill-btn" onclick="showTab('resources')">Edit Resources →</button>
+      </div>
+      <div class="occ-table-wrap">
+        <table class="occ-table">
+          <thead><tr><th>Resource</th><th>Available</th><th>Total</th><th>Occupancy</th><th>Status</th><th>Last Updated</th></tr></thead>
+          <tbody id="overviewTableBody"></tbody>
+        </table>
+      </div>
+      <div class="section-hd">
+        <div class="section-title">Recent Alerts</div>
+        <button class="pill-btn" onclick="showTab('alerts')">View All →</button>
+      </div>
+      <div class="alert-list" id="alertPreview"></div>
+    </div>
+
+    <!-- ═══ RESOURCE MANAGER ═══ -->
+    <div class="tab-content" id="tab-resources">
+      <div class="page-header">
+        <h1>Resource Manager</h1>
+        <p>Click any individual unit below to toggle its status. Total capacity +/− adds or removes the last unit number. Available count is always calculated from real unit statuses.</p>
+      </div>
+      <div class="info-banner" style="border-color:rgba(6,214,199,0.3);background:rgba(6,214,199,0.03);color:var(--cyan);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>Click any <strong style="margin:0 3px">individual unit tile</strong> to mark it Available / Occupied / Maintenance. Available count updates automatically. Use <strong style="margin:0 3px">+/−</strong> only to add or remove physical units (total capacity).</span>
+      </div>
+      <div class="resource-grid" id="resourceGrid"></div>
+    </div>
+
+    <!-- ═══ OCCUPANCY ═══ -->
+    <div class="tab-content" id="tab-occupancy">
+      <div class="page-header">
+        <h1>Occupancy Tracker</h1>
+        <p>Monitor bed occupancy and current patient distribution.</p>
+      </div>
+      <div class="date-row">
+        <span style="font-size:0.78rem;color:var(--muted);">Period:</span>
+        <button class="date-btn active" onclick="setDateRange(this,'today')">Today</button>
+        <button class="date-btn" onclick="setDateRange(this,'week')">This Week</button>
+        <button class="date-btn" onclick="setDateRange(this,'month')">This Month</button>
+        <input type="date" class="date-input" id="dateFrom" />
+        <span style="color:var(--muted);">—</span>
+        <input type="date" class="date-input" id="dateTo" />
+        <button class="pill-btn" onclick="applyCustomDate()">Apply</button>
+      </div>
+      <div class="section-hd"><div class="section-title">Bed & Resource Occupancy</div></div>
+      <div class="occ-table-wrap" style="margin-bottom:24px;">
+        <table class="occ-table">
+          <thead><tr><th>Resource</th><th>Available</th><th>Occupied</th><th>Total</th><th>% Occupied</th><th>Status</th><th>Update Available</th></tr></thead>
+          <tbody id="occupancyTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ═══ WARDS ═══ -->
+    <div class="tab-content" id="tab-wards">
+      <div class="page-header">
+        <h1>Wards & Departments</h1>
+        <p>Per-ward bed status and occupancy.</p>
+      </div>
+      <div class="ward-grid" id="wardGrid"></div>
+    </div>
+
+    <!-- ═══ RESOURCE UPDATES ═══ -->
+    <div class="tab-content" id="tab-log">
+      <div class="page-header">
+        <h1>Resource Status Updates</h1>
+        <p>Live status of every bed and resource — scan a QR code or enter an ID to instantly see or update its status.</p>
+      </div>
+
+      <!-- QR / Manual lookup -->
+      <div class="ru-scan-bar">
+        <div class="ru-scan-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3M17 17h4M14 20h3"/></svg>
+        </div>
+        <input id="ruSearchInput" class="ru-search-input" type="text" placeholder="Enter resource ID (e.g. BED-001, ICU-003, VENT-002) or scan QR…" oninput="onRuSearch(this.value)" autocomplete="off" />
+        <button class="pill-btn" onclick="refreshAllStatuses()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23,4 23,11 16,11"/><polyline points="1,20 1,13 8,13"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 11M1 13l4.64 4.36A9 9 0 0020.49 15"/></svg>
+          Refresh All
+        </button>
+      </div>
+
+      <!-- Filter pills -->
+      <div class="ru-filter-row">
+        <span style="font-size:0.75rem;color:var(--muted);">Filter:</span>
+        <button class="ru-filter-btn active" onclick="setRuFilter('all',this)">All</button>
+        <button class="ru-filter-btn" onclick="setRuFilter('Available',this)">
+          <span class="ru-dot" style="background:var(--green)"></span>Available
+        </button>
+        <button class="ru-filter-btn" onclick="setRuFilter('Occupied',this)">
+          <span class="ru-dot" style="background:var(--red)"></span>Occupied
+        </button>
+        <button class="ru-filter-btn" onclick="setRuFilter('Maintenance',this)">
+          <span class="ru-dot" style="background:var(--orange)"></span>Maintenance
+        </button>
+        <span style="margin-left:auto;font-size:0.72rem;color:var(--muted);font-family:var(--font-mono);" id="ruLastRefresh">—</span>
+      </div>
+
+      <!-- Live status grid - fetched from Firebase -->
+      <div class="ru-grid" id="ruGrid">
+        <div class="ru-empty">
+          <div style="font-size:2rem;margin-bottom:10px;">🔄</div>
+          <div style="font-weight:600;margin-bottom:4px;">Loading resource statuses…</div>
+          <div style="font-size:0.78rem;color:var(--muted);">Fetching live data from Firebase</div>
+        </div>
+      </div>
+
+      <!-- Inline update panel (shown when a card is selected) -->
+      <div class="ru-update-panel" id="ruUpdatePanel" style="display:none;">
+        <div class="ru-update-header">
+          <div>
+            <div style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Updating Resource</div>
+            <div style="font-family:var(--font-display);font-size:1.05rem;font-weight:700;" id="ruPanelTitle">—</div>
+            <div style="font-family:var(--font-mono);font-size:0.72rem;color:var(--blue-bright);" id="ruPanelId">—</div>
+          </div>
+          <button class="alert-dismiss" onclick="closeRuPanel()" style="font-size:1.3rem;">✕</button>
+        </div>
+        <div style="display:flex;gap:10px;margin:16px 0;flex-wrap:wrap;">
+          <button class="ru-status-btn" data-status="Available"   onclick="selectRuStatus(this)">
+            <span class="ru-dot" style="background:var(--green)"></span> Available
+          </button>
+          <button class="ru-status-btn" data-status="Occupied"    onclick="selectRuStatus(this)">
+            <span class="ru-dot" style="background:var(--red)"></span> Occupied / In Use
+          </button>
+          <button class="ru-status-btn" data-status="Maintenance" onclick="selectRuStatus(this)">
+            <span class="ru-dot" style="background:var(--orange)"></span> Under Maintenance
+          </button>
+        </div>
+        <div class="form-field" style="margin-bottom:12px;">
+          <label>Notes (optional)</label>
+          <input type="text" id="ruPanelNotes" placeholder="e.g. Deep cleaning, awaiting repair…" style="width:100%;padding:9px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--white);font-family:var(--font-body);font-size:0.85rem;outline:none;" />
+        </div>
+        <button class="topbar-save-btn" style="width:100%;justify-content:center;" onclick="submitRuUpdate()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>
+          Confirm Status Update
+        </button>
+      </div>
+
+      <!-- Recent scan history -->
+      <div class="section-hd" style="margin-top:28px;">
+        <div class="section-title">Recent QR Scan History <small id="logCount"></small></div>
+        <button class="pill-btn" onclick="clearLog()">Clear History</button>
+      </div>
+      <div class="log-wrap">
+        <table class="log-table">
+          <thead><tr><th>Time</th><th>Resource ID</th><th>Status Set</th><th>Notes</th><th>Updated By</th></tr></thead>
+          <tbody id="logTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ═══ ALERTS ═══ -->
+    <div class="tab-content" id="tab-alerts">
+      <div class="page-header">
+        <h1>Alerts & Notifications</h1>
+        <p>Patient booking requests and system resource alerts. Click any booking card to view full patient details.</p>
+      </div>
+
+      <!-- ─ Patient Booking Requests ─ -->
+      <div class="section-hd" style="margin-bottom:16px;">
+        <div class="section-title">🛏️ Patient Booking Requests <small id="bookingAlertCount"></small></div>
+        <button class="pill-btn" onclick="markAllBookingsConfirmed()">✅ Mark All Confirmed</button>
+      </div>
+      <div id="bookingAlertsContainer" style="display:flex;flex-direction:column;gap:10px;margin-bottom:32px;">
+        <div class="alert-item info">
+          <div class="alert-icon-wrap info">🛏️</div>
+          <div class="alert-text">
+            <div class="alert-title">No booking requests yet</div>
+            <div class="alert-sub">When patients submit pre-arrival booking requests from the patient portal, they'll appear here.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─ System Resource Alerts ─ -->
+      <div class="section-hd">
+        <div class="section-title">⚡ Resource Threshold Alerts</div>
+        <button class="pill-btn" onclick="dismissAllAlerts()">Dismiss All</button>
+      </div>
+      <div class="alert-list" id="alertsContainer"></div>
+    </div>
+
+    <!-- ═══ SETTINGS ═══ -->
+    <div class="tab-content" id="tab-settings">
+      <div class="page-header">
+        <h1>Hospital Settings</h1>
+        <p>Update hospital info. Changes save to Firebase when you click Save to DB.</p>
+      </div>
+      <div class="settings-grid">
+        <div class="settings-card">
+          <h3>🏥 Hospital Information</h3>
+          <div class="form-field"><label>Hospital Name</label><input type="text" id="set_name" oninput="markUnsaved()" /></div>
+          <div class="form-field"><label>Type</label>
+            <select id="set_type" onchange="markUnsaved()">
+              <option>Government Medical Institute</option>
+              <option>Government Teaching Hospital</option>
+              <option>Government Multi-Specialty</option>
+              <option>Government District Hospital</option>
+              <option>Government Specialty</option>
+              <option>Private Multi-Specialty</option>
+              <option>Private Hospital</option>
+            </select>
+          </div>
+          <div class="form-field"><label>Address</label><input type="text" id="set_address" oninput="markUnsaved()" /></div>
+          <div class="form-field"><label>City</label><input type="text" id="set_city" oninput="markUnsaved()" /></div>
+          <div class="form-field"><label>Emergency Status</label>
+            <select id="set_status" onchange="markUnsaved()">
+              <option value="open">Emergency Open</option>
+              <option value="limited">Limited Availability</option>
+              <option value="full">Full / No Vacancy</option>
+            </select>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>📞 Contact & Emergency</h3>
+          <div class="form-field"><label>Emergency Phone</label><input type="tel" id="set_phone" oninput="markUnsaved()" /></div>
+          <div class="form-field"><label>Admin Email</label><input type="email" id="set_email" oninput="markUnsaved()" /></div>
+          <div class="form-field"><label>Ambulance Number</label><input type="tel" id="set_amb" value="108" oninput="markUnsaved()" /></div>
+          <div class="form-field"><label>Website URL</label><input type="url" id="set_website" placeholder="https://…" oninput="markUnsaved()" /></div>
+          <div class="form-field"><label>Description</label><textarea id="set_desc" oninput="markUnsaved()" placeholder="Brief description shown to patients…"></textarea></div>
+        </div>
+        <div class="settings-card" style="border-color:rgba(6,214,199,0.3);background:rgba(6,214,199,0.03);">
+          <h3>🔗 QR Scan URL <span style="font-size:0.68rem;font-weight:400;color:var(--cyan);margin-left:6px;">Required for phone scanning</span></h3>
+          <p style="font-size:0.75rem;color:var(--muted);margin-bottom:14px;line-height:1.6;">
+            Paste the public URL where <strong style="color:var(--white)">medvyavastha_integrated.html</strong> is hosted (e.g. GitHub Pages).<br>
+            When someone scans a QR code with their phone, it will open this URL.
+          </p>
+          <div class="form-field">
+            <label>Deployed Scanner URL</label>
+            <input type="url" id="set_scan_url" placeholder="https://yourusername.github.io/medvyavastha/medvyavastha_integrated.html" oninput="markUnsaved()" />
+          </div>
+          <div id="scanUrlStatus" style="font-size:0.75rem;margin-top:-6px;margin-bottom:10px;"></div>
+          <button class="pill-btn" style="width:100%;justify-content:center;" onclick="saveScanUrl()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/></svg>
+            Save URL & Regenerate QR Codes
+          </button>
+          <div style="margin-top:16px;padding:12px;background:var(--bg3);border-radius:8px;border:1px solid var(--border);">
+            <div style="font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Free Hosting Options</div>
+            <div style="font-size:0.75rem;color:var(--muted);line-height:1.8;">
+              ① Upload your HTML files to a <strong style="color:var(--white)">GitHub repo</strong><br>
+              ② Go to repo Settings → Pages → Deploy from main branch<br>
+              ③ GitHub gives you a free URL like <code style="color:var(--cyan);font-size:0.7rem;">https://username.github.io/repo/</code><br>
+              ④ Paste that URL above and save — all QR codes update instantly!
+            </div>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>⚙️ Alert Thresholds</h3>
+          <p style="font-size:0.78rem;color:var(--muted);margin-bottom:16px;">Auto-alerts fire when resources drop below these values.</p>
+          <div class="form-field"><label>Beds — Critical Below</label><input type="number" id="thr_beds" value="5" oninput="markUnsaved()" /></div>
+          <div class="form-field"><label>ICU — Critical Below</label><input type="number" id="thr_icu" value="2" oninput="markUnsaved()" /></div>
+          <div class="form-field"><label>Ventilators — Critical Below</label><input type="number" id="thr_vent" value="2" oninput="markUnsaved()" /></div>
+          <div class="form-field"><label>OT — Warning Below</label><input type="number" id="thr_ot" value="1" oninput="markUnsaved()" /></div>
+        </div>
+        <div class="settings-card">
+          <h3>🔔 Notifications</h3>
+          <div class="toggle-row"><div><div class="toggle-label">Low-resource alerts</div><div class="toggle-sub">Notify when beds/ICU drop below threshold</div></div><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></div>
+          <div class="toggle-row"><div><div class="toggle-label">Daily summary email</div><div class="toggle-sub">End-of-day occupancy report</div></div><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></div>
+          <div class="toggle-row"><div><div class="toggle-label">Patient inquiry alerts</div><div class="toggle-sub">Notify when a patient views your listing</div></div><label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label></div>
+          <div class="toggle-row"><div><div class="toggle-label">Auto-status update</div><div class="toggle-sub">Auto-set "Full" when beds = 0</div></div><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></div>
+        </div>
+
+        <!-- ── AUTO-CLEANUP SETTINGS ── -->
+        <div class="settings-card" style="border-color:rgba(6,214,199,0.25);background:rgba(6,214,199,0.03);grid-column:1/-1;">
+          <h3>🧹 Auto-Cleanup Settings</h3>
+          <p style="font-size:0.78rem;color:var(--muted);margin-bottom:20px;line-height:1.6;">Automatically remove old entries to keep your dashboard clutter-free. Set to <strong style="color:var(--white)">Never</strong> to disable auto-deletion.</p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;">
+
+            <!-- Resource Status Updates -->
+            <div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:16px;">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+                <div style="width:32px;height:32px;background:rgba(59,130,246,0.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:1rem;">📋</div>
+                <div>
+                  <div style="font-weight:600;font-size:0.88rem;">Resource Status Updates</div>
+                  <div style="font-size:0.72rem;color:var(--muted);">Entries in the Resource Updates board</div>
+                </div>
+              </div>
+              <label style="font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:8px;">Delete after</label>
+              <div style="display:flex;flex-wrap:wrap;gap:7px;" id="ruCleanupBtns">
+                <button class="cleanup-option-btn active" data-val="never"  onclick="selectCleanup('ru','never',this)">Never</button>
+                <button class="cleanup-option-btn"        data-val="1h"     onclick="selectCleanup('ru','1h',this)">1 Hour</button>
+                <button class="cleanup-option-btn"        data-val="6h"     onclick="selectCleanup('ru','6h',this)">6 Hours</button>
+                <button class="cleanup-option-btn"        data-val="12h"    onclick="selectCleanup('ru','12h',this)">12 Hours</button>
+                <button class="cleanup-option-btn"        data-val="24h"    onclick="selectCleanup('ru','24h',this)">24 Hours</button>
+                <button class="cleanup-option-btn"        data-val="3d"     onclick="selectCleanup('ru','3d',this)">3 Days</button>
+                <button class="cleanup-option-btn"        data-val="7d"     onclick="selectCleanup('ru','7d',this)">7 Days</button>
+              </div>
+              <div id="ruCleanupStatus" style="margin-top:12px;font-size:0.75rem;color:var(--muted);min-height:18px;"></div>
+              <button class="pill-btn" style="margin-top:12px;width:100%;justify-content:center;font-size:0.8rem;" onclick="runCleanupNow('ru')">
+                🗑️ Clean Up Now
+              </button>
+            </div>
+
+            <!-- Booking Alert Requests -->
+            <div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:16px;">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+                <div style="width:32px;height:32px;background:rgba(245,158,11,0.12);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:1rem;">🛎️</div>
+                <div>
+                  <div style="font-weight:600;font-size:0.88rem;">Booking Alert Requests</div>
+                  <div style="font-size:0.72rem;color:var(--muted);">Patient booking requests in Alerts tab</div>
+                </div>
+              </div>
+              <label style="font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:8px;">Delete after</label>
+              <div style="display:flex;flex-wrap:wrap;gap:7px;" id="baCleanupBtns">
+                <button class="cleanup-option-btn active" data-val="never"  onclick="selectCleanup('ba','never',this)">Never</button>
+                <button class="cleanup-option-btn"        data-val="1h"     onclick="selectCleanup('ba','1h',this)">1 Hour</button>
+                <button class="cleanup-option-btn"        data-val="6h"     onclick="selectCleanup('ba','6h',this)">6 Hours</button>
+                <button class="cleanup-option-btn"        data-val="12h"    onclick="selectCleanup('ba','12h',this)">12 Hours</button>
+                <button class="cleanup-option-btn"        data-val="24h"    onclick="selectCleanup('ba','24h',this)">24 Hours</button>
+                <button class="cleanup-option-btn"        data-val="3d"     onclick="selectCleanup('ba','3d',this)">3 Days</button>
+                <button class="cleanup-option-btn"        data-val="7d"     onclick="selectCleanup('ba','7d',this)">7 Days</button>
+              </div>
+              <div id="baCleanupStatus" style="margin-top:12px;font-size:0.75rem;color:var(--muted);min-height:18px;"></div>
+              <button class="pill-btn" style="margin-top:12px;width:100%;justify-content:center;font-size:0.8rem;" onclick="runCleanupNow('ba')">
+                🗑️ Clean Up Now
+              </button>
+            </div>
+
+          </div>
+          <!-- Next auto-run info -->
+          <div style="margin-top:16px;padding:11px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:9px;display:flex;align-items:center;gap:10px;">
+            <span style="font-size:1rem;">⏱️</span>
+            <div style="font-size:0.78rem;color:var(--muted);">Auto-cleanup runs every time you load the dashboard and every hour while it stays open. Your settings are saved locally.</div>
+          </div>
+        </div>
+
+      </div>
+      <button class="topbar-save-btn" style="width:auto;" onclick="saveAllData()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/></svg>
+        Save to Firebase
+      </button>
+    </div>
+
+    <!-- ═══ QR CODES ═══ -->
+    <div class="tab-content" id="tab-qrcodes">
+      <div class="page-header">
+        <h1>QR Code Generator</h1>
+        <p>Generate QR labels for each bed and resource. Print and stick on the physical unit — staff scan to update status in seconds.</p>
+      </div>
+      <div class="qr-banner">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Each QR code encodes your <strong style="margin:0 4px">hospital ID + bed ID</strong>. When scanned, it updates your Firebase database automatically.
+      </div>
+      <div class="qr-tab-header">
+        <div class="qr-type-tabs" id="qrTypeTabs"></div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <span style="font-size:0.78rem;color:var(--muted);">Batch generate:</span>
+          <div class="qr-count-input">
+            <input type="number" id="batchFrom" value="1" min="1" placeholder="From" />
+            <span style="color:var(--muted);">—</span>
+            <input type="number" id="batchTo" value="10" min="1" max="100" placeholder="To" />
+          </div>
+          <button class="pill-btn" onclick="generateBatch()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3M17 17h4M14 20h3"/></svg>
+            Generate Batch
+          </button>
+        </div>
+      </div>
+      <div class="qr-grid" id="qrGrid"></div>
+    </div>
+
+  </div><!-- /content -->
+</main>
+</div><!-- /app -->
+
+<div id="toast"></div>
+
+<!-- ══════════════════════════════════════════════════════
+     🔥 STEP 1 — PASTE YOUR FIREBASE CONFIG HERE
+     Go to: Firebase Console → Project Settings → Your Apps → SDK setup
+══════════════════════════════════════════════════════ -->
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<script>
+const firebaseConfig = {
+  apiKey: window.__env?.FIREBASE_API_KEY || "",
+  authDomain: window.__env?.FIREBASE_AUTH_DOMAIN || "",
+  projectId: window.__env?.FIREBASE_PROJECT_ID || "",
+  storageBucket: window.__env?.FIREBASE_STORAGE_BUCKET || "",
+  messagingSenderId: window.__env?.FIREBASE_MESSAGING_SENDER_ID || "",
+  appId: window.__env?.FIREBASE_APP_ID || ""
+};
+
+// ✅ Initialize FIRST
+firebase.initializeApp(firebaseConfig);
+
+const auth = firebase.auth();
+const db   = firebase.firestore();
+</script>
+
+<!-- ══════════════════════════════════════════════════════
+     APP LOGIC  (no changes needed below this line)
+══════════════════════════════════════════════════════ -->
+<script>
+
+// ─── DEFAULT RESOURCE TEMPLATE (used when a hospital has NO DB doc yet) ───
+const DEFAULT_RESOURCES = {
+  beds:        { avail:0, total:100, label:"General Beds",       icon:"🛏️" },
+  icu:         { avail:0, total:20,  label:"ICU Beds",           icon:"🏥" },
+  ventilators: { avail:0, total:10,  label:"Ventilators",        icon:"💨" },
+  ot:          { avail:0, total:5,   label:"OT Rooms",           icon:"🔬" },
+  ambulance:   { avail:0, total:4,   label:"Ambulances",         icon:"🚑" },
+  rooms:       { avail:0, total:50,  label:"Private Rooms",      icon:"🚪" },
+  blood:       { avail:0, total:10,  label:"Blood Units (O+)",   icon:"🩸" },
+  oxygen:      { avail:0, total:20,  label:"Oxygen Beds",        icon:"🫁" }
+};
+
+const WARDS_DATA = [
+  { name:"General Medicine", dept:"Ward A", beds:80, avail:32, staff:12 },
+  { name:"Intensive Care Unit", dept:"ICU", beds:40, avail:12, staff:18 },
+  { name:"Cardiology", dept:"Ward B", beds:45, avail:20, staff:8 },
+  { name:"Orthopaedics", dept:"Ward C", beds:35, avail:15, staff:7 },
+  { name:"Paediatrics", dept:"Ward D", beds:30, avail:18, staff:9 },
+  { name:"Gynaecology", dept:"Ward E", beds:25, avail:10, staff:6 },
+  { name:"Neurology", dept:"Ward F", beds:20, avail:7, staff:5 },
+  { name:"Oncology", dept:"Ward G", beds:25, avail:9, staff:7 }
+];
+
+// ── TOP-LEVEL GLOBALS (must be declared before auth callback) ──
+let currentHospitalId = null;
+let currentQrData     = null;
+
+// Live working copy of this hospital's data
+let hospitalData = {
+  name: "Your Hospital",
+  type: "",
+  city: "",
+  address: "",
+  phone: "",
+  email: "",
+  amb: "108",
+  website: "",
+  desc: "",
+  status: "open",
+  resources: JSON.parse(JSON.stringify(DEFAULT_RESOURCES))
+};
+
+let currentUser  = null;
+let changeLog    = [];
+let alerts       = [];
+
+// ══════════════════════════════════════════════
+// AUTH — wait for login, load data, show app
+// ══════════════════════════════════════════════
+auth.onAuthStateChanged(async (user) => {
+  if (!user) {
+    document.getElementById('loadingMsg').textContent = 'Redirecting to login…';
+    setTimeout(() => { window.location.href = 'hospitallogin.html'; }, 1000);
+    return;
+  }
+
+  currentUser = user;
+  currentHospitalId = user.uid;
+
+  startBookingAlertsListener();
+
+  document.getElementById('loadingMsg').textContent = 'Loading your dashboard…';
+  document.getElementById('sidebarEmail').textContent = user.email;
+
+  try {
+    // 🔥 Pull hospital doc from Firestore using the user's UID as document ID
+    const snap = await db.collection('hospitals').doc(user.uid).get();
+
+    if (snap.exists) {
+      const d = snap.data();
+      // Merge DB data into hospitalData (keep defaults for missing fields)
+      hospitalData.name    = d.name    || hospitalData.name;
+      hospitalData.type    = d.type    || hospitalData.type;
+      hospitalData.city    = d.city    || hospitalData.city;
+      hospitalData.address = d.address || hospitalData.address;
+      hospitalData.phone   = d.phone   || hospitalData.phone;
+      hospitalData.email   = d.email   || hospitalData.email;
+      hospitalData.amb     = d.amb     || hospitalData.amb;
+      hospitalData.website = d.website || hospitalData.website;
+      hospitalData.desc    = d.desc    || hospitalData.desc;
+      hospitalData.status  = d.status  || hospitalData.status;
+
+      // Merge resources (keep icon/label from defaults, use avail/total from DB)
+      if (d.resources) {
+        Object.keys(hospitalData.resources).forEach(key => {
+          if (d.resources[key]) {
+            hospitalData.resources[key].avail = Number(d.resources[key].avail) || 0;
+            hospitalData.resources[key].total = Number(d.resources[key].total) || hospitalData.resources[key].total;
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Firestore read error:', err);
+    showToast('⚠️ Could not load DB data. Using defaults.');
+  }
+
+  // Render everything
+  try {
+  initDashboard();
+  setTimeout(initCleanup, 1500); // run after Firestore listeners are ready
+} catch(e){
+  console.error(e);
+}
+
+document.getElementById('loadingScreen').style.display = 'none';
+document.getElementById('appShell').style.display = 'flex';
+
+startBookingAlertsListener();
+startRuListener();
+});
+
+// ══════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════
+function initDashboard() {
+  try {
+    const now = new Date();
+    const fmt = d => d.toISOString().split('T')[0];
+
+    const from = document.getElementById('dateFrom');
+    const to   = document.getElementById('dateTo');
+
+    if (from) from.value = fmt(now);
+    if (to) to.value = fmt(now);
+
+    applyHospitalToUI();
+    generateAlerts();
+
+  } catch (err) {
+    console.error("initDashboard error:", err);
+  }
+}
+
+function applyHospitalToUI() {
+  const h = hospitalData;
+
+  // Topbar / header
+  document.getElementById('topbarHospitalName').textContent = h.name;
+  document.getElementById('ovHospitalName').textContent     = h.name;
+  const now = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('ovLastUpdated').textContent = now;
+  document.getElementById('lastSynced').textContent    = now;
+
+  // Status pill
+  const statusEl = document.getElementById('statusLabel');
+  const dot       = document.getElementById('statusDot');
+  if (h.status === 'open')    { statusEl.textContent = 'Emergency Open';      dot.className = 'pulse-dot'; }
+  else if (h.status === 'limited') { statusEl.textContent = 'Limited Availability'; dot.className = 'pulse-dot yellow'; }
+  else                        { statusEl.textContent = 'Full / No Vacancy';   dot.className = 'pulse-dot red'; }
+
+  // Settings form
+  document.getElementById('set_name').value    = h.name;
+  document.getElementById('set_city').value    = h.city;
+  document.getElementById('set_phone').value   = h.phone;
+  document.getElementById('set_address').value = h.address;
+  document.getElementById('set_email').value   = h.email;
+  document.getElementById('set_amb').value     = h.amb;
+  document.getElementById('set_website').value = h.website;
+  document.getElementById('set_desc').value    = h.desc;
+  // Set type dropdown
+  const typeEl = document.getElementById('set_type');
+  for (let o of typeEl.options) { if (o.value === h.type || o.text === h.type) o.selected = true; }
+  // Set status dropdown
+  document.getElementById('set_status').value = h.status || 'open';
+
+  renderStats();
+  renderSparklines();
+  renderOverviewTable();
+  renderResourceGrid();
+  renderOccupancyTable();
+  renderWards();
+  renderLog();
+  renderAlerts();
+  renderAlertPreview();
+  loadScanUrl();
+}
+
+// ══════════════════════════════════════════════
+// SAVE TO FIREBASE 🔥
+// ══════════════════════════════════════════════
+function saveScanUrl() {
+  const url = document.getElementById('set_scan_url').value.trim();
+  if (!url) { showToast('⚠️ Paste a URL first'); return; }
+  if (!url.startsWith('http')) { showToast('⚠️ URL must start with https://'); return; }
+  localStorage.setItem('medv_scan_url', url);
+  document.getElementById('scanUrlStatus').innerHTML = '<span style="color:var(--green)">✅ Saved! QR codes will now link to this URL.</span>';
+  showToast('✅ Scan URL saved — regenerate your QR codes');
+}
+
+function loadScanUrl() {
+  const saved = localStorage.getItem('medv_scan_url');
+  const el = document.getElementById('set_scan_url');
+  if (el) el.value = saved || '';
+  const statusEl = document.getElementById('scanUrlStatus');
+  if (statusEl) {
+    if (saved) {
+      statusEl.innerHTML = '<span style="color:var(--green)">✅ URL set — QR codes will work on phones</span>';
+    } else {
+      statusEl.innerHTML = '<span style="color:var(--orange)">⚠️ No URL set — QR codes only work locally</span>';
+    }
+  }
+}
+
+async function saveAllData() {
+  if (!currentUser) { showToast('❌ Not logged in'); return; }
+
+  // Collect settings form values into hospitalData
+  hospitalData.name    = document.getElementById('set_name').value    || hospitalData.name;
+  hospitalData.city    = document.getElementById('set_city').value;
+  hospitalData.phone   = document.getElementById('set_phone').value;
+  hospitalData.address = document.getElementById('set_address').value;
+  hospitalData.email   = document.getElementById('set_email').value;
+  hospitalData.amb     = document.getElementById('set_amb').value;
+  hospitalData.website = document.getElementById('set_website').value;
+  hospitalData.desc    = document.getElementById('set_desc').value;
+  hospitalData.status  = document.getElementById('set_status').value;
+  hospitalData.type    = document.getElementById('set_type').value;
+
+  // Collect resource totals from UI (avail is now computed from unit statuses, not manually entered)
+  Object.keys(hospitalData.resources).forEach(key => {
+    const totEl = document.getElementById('tot_' + key);
+    if (totEl) hospitalData.resources[key].total = parseInt(totEl.value) || hospitalData.resources[key].total;
+    // avail stays as computed by recalcAvailFromUnits — do not override
+  });
+
+  // Build the Firestore payload
+  // We store only serializable data (no icon labels – those are UI constants)
+  const payload = {
+    name:    hospitalData.name,
+    type:    hospitalData.type,
+    city:    hospitalData.city,
+    address: hospitalData.address,
+    phone:   hospitalData.phone,
+    email:   hospitalData.email,
+    amb:     hospitalData.amb,
+    website: hospitalData.website,
+    desc:    hospitalData.desc,
+    status:  hospitalData.status,
+    resources: {},
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  Object.keys(hospitalData.resources).forEach(key => {
+    payload.resources[key] = {
+      avail: hospitalData.resources[key].avail,
+      total: hospitalData.resources[key].total
+    };
+  });
+
+  try {
+    // 🔥 setDoc with merge:true — creates or updates, never overwrites unrelated fields
+    await db.collection('hospitals').doc(currentUser.uid).set(payload, { merge: true });
+
+    markSaved();
+    applyHospitalToUI(); // refresh all widgets with new values
+    showToast('✅ Saved to Firebase!');
+  } catch (err) {
+    console.error('Save error:', err);
+    showToast('❌ Save failed: ' + err.message);
+  }
+}
+
+// ══════════════════════════════════════════════
+// LOGOUT
+// ══════════════════════════════════════════════
+async function handleLogout() {
+  await auth.signOut();
+  window.location.href = 'hospitallogin.html';
+}
+
+// ══════════════════════════════════════════════
+// STATS ROW
+// ══════════════════════════════════════════════
+function renderStats() {
+  const r = hospitalData.resources;
+  const occ = r.beds.total ? Math.round((1 - r.beds.avail / r.beds.total) * 100) : 0;
+  const stats = [
+    { label:'General Beds Available', val:r.beds.avail,        total:r.beds.total,        icon:'🛏️', color:'blue',   change:`${occ}% occupied`,                                   dir: occ > 70 ? 'warn' : 'up' },
+    { label:'ICU Free',               val:r.icu.avail,         total:r.icu.total,         icon:'🏥', color:'green',  change: r.icu.avail < 3 ? '⚠ Critical' : r.icu.avail < 6 ? 'Low' : 'Adequate', dir: r.icu.avail < 3 ? 'down' : r.icu.avail < 6 ? 'warn' : 'up' },
+    { label:'Ventilators Available',  val:r.ventilators.avail, total:r.ventilators.total, icon:'💨', color:'orange', change:`${r.ventilators.total - r.ventilators.avail} in use`, dir:'warn' },
+    { label:'OT Rooms Free',          val:r.ot.avail,          total:r.ot.total,          icon:'🔬', color:'red',    change:`${r.ot.total} total OT rooms`,                       dir:'up' }
+  ];
+  document.getElementById('statsRow').innerHTML = stats.map(s => `
+    <div class="stat-card ${s.color}">
+      <div class="stat-icon ${s.color}-bg">${s.icon}</div>
+      <div class="stat-val">${s.val}</div>
+      <div class="stat-lbl">${s.label} <span style="color:var(--muted);font-size:0.7rem;">/ ${s.total}</span></div>
+      <div class="stat-change ${s.dir}">${s.dir==='up'?'↑':s.dir==='down'?'↓':'⚡'} ${s.change}</div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════
+// SPARKLINES
+// ══════════════════════════════════════════════
+function renderSparklines() {
+  const r = hospitalData.resources;
+  const bedOcc = r.beds.total ? Math.round((1 - r.beds.avail / r.beds.total) * 100) : 0;
+  const icuOcc = r.icu.total  ? Math.round((1 - r.icu.avail  / r.icu.total)  * 100) : 0;
+  const items = [
+    { label:'Bed Occupancy',    val: bedOcc + '%', data:[62,68,71,65,72,70,bedOcc], color:'var(--blue-bright)' },
+    { label:'ICU Utilisation',  val: icuOcc + '%', data:[55,60,72,68,75,70,icuOcc], color:'var(--cyan)' },
+    { label:'Admissions Today', val:'—',           data:[8,12,10,15,11,13,14],       color:'var(--green)' }
+  ];
+  document.getElementById('sparklineRow').innerHTML = items.map(item => `
+    <div class="sparkline-card">
+      <div class="sparkline-top">
+        <div><div class="sparkline-val">${item.val}</div><div class="sparkline-lbl">${item.label}</div></div>
+      </div>
+      ${makeSVGSparkline(item.data, item.color)}
+    </div>`).join('');
+}
+function makeSVGSparkline(data, color) {
+  const w=200,h=44,pad=4;
+  const minV=Math.min(...data)-5,maxV=Math.max(...data)+5;
+  const scX=i=>pad+(i/(data.length-1))*(w-2*pad);
+  const scY=v=>h-pad-((v-minV)/(maxV-minV))*(h-2*pad);
+  const pts=data.map((v,i)=>`${scX(i)},${scY(v)}`).join(' ');
+  const fillPts=`${scX(0)},${h} ${pts} ${scX(data.length-1)},${h}`;
+  const id='sg'+color.replace(/[^a-z]/gi,'');
+  return `<svg class="sparkline" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${color}" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <polygon points="${fillPts}" fill="url(#${id})" />
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
+}
+
+// ══════════════════════════════════════════════
+// OVERVIEW TABLE
+// ══════════════════════════════════════════════
+function renderOverviewTable() {
+  const r = hospitalData.resources;
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+  const dateStr = now.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+  document.getElementById('overviewTableBody').innerHTML = Object.entries(r).map(([key,res]) => {
+    const occ = res.total ? Math.round((1 - res.avail / res.total) * 100) : 0;
+    const badge = occ >= 85 ? 'badge-red' : occ >= 60 ? 'badge-yellow' : 'badge-green';
+    const badgeTxt = occ >= 85 ? 'Critical' : occ >= 60 ? 'Limited' : 'Available';
+    return `<tr>
+      <td><div class="td-name">${res.icon} ${res.label}</div></td>
+      <td><strong>${res.avail}</strong></td>
+      <td>${res.total}</td>
+      <td><div style="display:flex;align-items:center;gap:8px;">
+        <div class="occ-mini-bar"><div class="occ-mini-fill" style="width:${occ}%;background:${occ>=85?'var(--red)':occ>=60?'var(--orange)':'var(--green)'}"></div></div>
+        <span style="font-family:var(--font-mono);font-size:0.75rem;color:var(--muted)">${occ}%</span>
+      </div></td>
+      <td><span class="badge ${badge}">${badgeTxt}</span></td>
+      <td><span class="log-date">${dateStr} ${timeStr}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════
+// RESOURCE GRID (EDITOR)
+// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════
+// RESOURCE GRID — per-unit tile system
+// ══════════════════════════════════════════════
+
+// Prefix map: resourceKey → QR prefix
+const KEY_TO_PREFIX = {
+  beds:'BED', icu:'ICU', ventilators:'VENT', ot:'OT',
+  ambulance:'AMB', oxygen:'OXY', rooms:'ROOM', blood:'BLD'
+};
+
+// Get the status for a specific unit ID from ruStatuses (live Firebase data)
+function getUnitStatus(unitId) {
+  const d = ruStatuses[unitId];
+  if (!d) return 'unknown';
+  const s = (d.status || '').toLowerCase();
+  if (s === 'available')   return 'available';
+  if (s === 'occupied' || s === 'in use') return 'occupied';
+  if (s === 'maintenance') return 'maintenance';
+  return 'unknown';
+}
+
+function renderResourceGrid() {
+  const r = hospitalData.resources;
+  document.getElementById('resourceGrid').innerHTML = Object.entries(r).map(([key, res]) => {
+    const prefix = KEY_TO_PREFIX[key] || key.toUpperCase();
+    const occ    = res.total ? Math.round((1 - res.avail / res.total) * 100) : 0;
+    const occClass = occ >= 85 ? 'high' : occ >= 60 ? 'mid' : 'low';
+    const dotClass = occ >= 85 ? 'red'  : occ >= 60 ? 'yellow' : 'green';
+
+    // Build unit tiles
+    let tiles = '';
+    for (let i = 1; i <= res.total; i++) {
+      const unitId  = `${prefix}-${String(i).padStart(3,'0')}`;
+      const status  = getUnitStatus(unitId);
+      const iconMap = { available:'✓', occupied:'✗', maintenance:'⚙', unknown:'?' };
+      tiles += `<div class="unit-tile ${status}" title="${unitId}: ${status}" onclick="cycleUnitStatus('${key}','${unitId}','${prefix}',${i})">
+        <span class="unit-tile-num">${String(i).padStart(3,'0')}</span>
+        <span class="unit-tile-icon">${iconMap[status]}</span>
+      </div>`;
+    }
+
+    return `<div class="resource-card" id="rescard-${key}">
+      <div class="res-header">
+        <div class="res-icon-name">
+          <span class="res-icon">${res.icon}</span>
+          <div>
+            <div class="res-name">${res.label}</div>
+            <div class="res-sub" id="res-sub-${key}">Available: ${res.avail} / ${res.total}</div>
+          </div>
+        </div>
+        <div class="res-status-dot ${dotClass}" id="resdot-${key}"></div>
+      </div>
+      <div class="occ-bar-wrap">
+        <div class="occ-bar-labels"><span>Occupied: ${res.total - res.avail}</span><span id="res-occ-pct-${key}">${occ}%</span></div>
+        <div class="occ-bar-track"><div class="occ-bar-fill ${occClass}" style="width:${occ}%" id="bar_${key}"></div></div>
+      </div>
+
+      <div class="res-units-label">Units — click to toggle status</div>
+      <div class="res-units-legend">
+        <span><span style="color:var(--green);font-size:0.75rem">■</span> Available</span>
+        <span><span style="color:var(--red);font-size:0.75rem">■</span> Occupied</span>
+        <span><span style="color:var(--orange);font-size:0.75rem">■</span> Maintenance</span>
+        <span><span style="color:var(--muted);font-size:0.75rem">■</span> Unknown</span>
+      </div>
+      <div class="res-units-grid" id="unitgrid-${key}">${tiles}</div>
+
+      <div class="counter-row" style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
+        <span class="counter-label" style="font-size:0.7rem;">Total capacity <span style="color:var(--muted);font-size:0.65rem;">(adds/removes last unit)</span></span>
+        <div class="counter-wrap">
+          <button class="counter-btn" onclick="adjustTotal('${key}',-1)" title="Remove last unit">−</button>
+          <input class="counter-val" type="number" id="tot_${key}" value="${res.total}" min="1" readonly style="cursor:default;" />
+          <button class="counter-btn" onclick="adjustTotal('${key}',1)" title="Add next unit">+</button>
+        </div>
+      </div>
+      <div class="res-note">Available count is calculated from real unit statuses, not set manually.</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Cycle a single unit through: unknown → available → occupied → maintenance → available ──
+const STATUS_CYCLE = ['available','occupied','maintenance'];
+async function cycleUnitStatus(resourceKey, unitId, prefix, num) {
+  if (!currentHospitalId) { showToast('❌ Not logged in'); return; }
+
+  const current = getUnitStatus(unitId);
+  const cycleFrom = current === 'unknown' ? -1 : STATUS_CYCLE.indexOf(current);
+  const next = STATUS_CYCLE[(cycleFrom + 1) % STATUS_CYCLE.length];
+  const statusLabel = next.charAt(0).toUpperCase() + next.slice(1);
+  // Map 'occupied' → 'Occupied' for DB
+  const dbStatus = next === 'occupied' ? 'Occupied' : statusLabel;
+
+  try {
+    await db.collection('hospitals')
+      .doc(currentHospitalId)
+      .collection('beds')
+      .doc(unitId)
+      .set({ id: unitId, status: dbStatus, notes: '', updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+
+    // Immediately update local cache so UI reflects before snapshot arrives
+    if (!ruStatuses[unitId]) ruStatuses[unitId] = {};
+    ruStatuses[unitId].status = dbStatus;
+
+    // Recalculate avail from all known unit statuses for this resource
+    recalcAvailFromUnits(resourceKey, prefix);
+
+    // Re-render just this resource card's tiles
+    rerenderUnitTiles(resourceKey, prefix);
+
+    // Log it
+    addLog(unitId, dbStatus, '');
+    showToast(`${unitId} → ${dbStatus}`);
+
+  } catch(err) {
+    console.error(err);
+    showToast('❌ Failed: ' + err.message);
+  }
+}
+
+// Recalculate hospitalData.resources[key].avail by counting 'Available' units in ruStatuses
+function recalcAvailFromUnits(resourceKey, prefix) {
+  const res = hospitalData.resources[resourceKey];
+  if (!res) return;
+  let avail = 0;
+  for (let i = 1; i <= res.total; i++) {
+    const unitId = `${prefix}-${String(i).padStart(3,'0')}`;
+    if (getUnitStatus(unitId) === 'available') avail++;
+  }
+  res.avail = avail;
+
+  // Push updated avail to Firestore aggregate
+  const rp = {}; rp[`resources.${resourceKey}.avail`] = avail;
+  db.collection('hospitals').doc(currentHospitalId).update(rp).catch(e => console.error(e));
+
+  // Refresh the counter display
+  updateBar(resourceKey);
+  const subEl = document.getElementById(`res-sub-${resourceKey}`);
+  if (subEl) subEl.textContent = `Available: ${avail} / ${res.total}`;
+  const pctEl = document.getElementById(`res-occ-pct-${resourceKey}`);
+  if (pctEl) {
+    const occ = res.total ? Math.round((1 - avail / res.total) * 100) : 0;
+    pctEl.textContent = occ + '%';
+  }
+  const dotEl = document.getElementById(`resdot-${resourceKey}`);
+  if (dotEl) {
+    const occ = res.total ? (1 - avail / res.total) : 0;
+    dotEl.className = 'res-status-dot ' + (occ >= 0.85 ? 'red' : occ >= 0.60 ? 'yellow' : 'green');
+  }
+  // Refresh stats + alerts
+  renderStats();
+  generateAlerts();
+  markUnsaved();
+}
+
+// Re-render just the tile grid inside a card (without full re-render)
+function rerenderUnitTiles(resourceKey, prefix) {
+  const res = hospitalData.resources[resourceKey];
+  if (!res) return;
+  const grid = document.getElementById(`unitgrid-${resourceKey}`);
+  if (!grid) return;
+  const iconMap = { available:'✓', occupied:'✗', maintenance:'⚙', unknown:'?' };
+  let tiles = '';
+  for (let i = 1; i <= res.total; i++) {
+    const unitId = `${prefix}-${String(i).padStart(3,'0')}`;
+    const status = getUnitStatus(unitId);
+    tiles += `<div class="unit-tile ${status}" title="${unitId}: ${status}" onclick="cycleUnitStatus('${resourceKey}','${unitId}','${prefix}',${i})">
+      <span class="unit-tile-num">${String(i).padStart(3,'0')}</span>
+      <span class="unit-tile-icon">${iconMap[status]}</span>
+    </div>`;
+  }
+  grid.innerHTML = tiles;
+}
+
+function adjustTotal(key, delta) {
+  const r = hospitalData.resources[key];
+  const prefix = KEY_TO_PREFIX[key] || key.toUpperCase();
+  const newTotal = Math.max(1, r.total + delta);
+  if (newTotal === r.total) return;
+
+  // If removing: if last unit was occupied/maintenance, warn
+  if (delta < 0) {
+    const lastId = `${prefix}-${String(r.total).padStart(3,'0')}`;
+    const st = getUnitStatus(lastId);
+    if (st === 'occupied') { showToast(`⚠️ ${lastId} is Occupied — mark it available first`); return; }
+  }
+
+  r.total = newTotal;
+  document.getElementById('tot_' + key).value = newTotal;
+  recalcAvailFromUnits(key, prefix);
+  rerenderUnitTiles(key, prefix);
+  const subEl = document.getElementById(`res-sub-${key}`);
+  if (subEl) subEl.textContent = `Available: ${r.avail} / ${r.total}`;
+  markUnsaved();
+  showToast(`${r.label} total → ${newTotal} units`);
+}
+
+// Legacy stubs (used by occupancy table inline input — redirect to unit system)
+function adjustRes(key, delta) {
+  showToast('ℹ️ Click individual unit tiles to change availability');
+}
+function onResInput(key, val) {}
+function onTotalInput(key, val) {
+  hospitalData.resources[key].total = Math.max(1, parseInt(val) || 1);
+  updateBar(key);
+  markUnsaved();
+}
+
+function updateBar(key) {
+  const r = hospitalData.resources[key];
+  const occ = r.total ? Math.round((1 - r.avail / r.total) * 100) : 0;
+  const bar = document.getElementById('bar_' + key);
+  if (bar) {
+    bar.style.width = occ + '%';
+    bar.className = 'occ-bar-fill ' + (occ >= 85 ? 'high' : occ >= 60 ? 'mid' : 'low');
+  }
+}
+
+function startBookingAlertsListener() {
+  if (!currentUser) return;
+
+  // Live collection of all booking alerts for this hospital
+  db.collection("hospitals")
+    .doc(currentUser.uid)
+    .collection("bookingAlerts")
+    .orderBy("createdAt", "desc")
+    .onSnapshot((snapshot) => {
+
+      // Rebuild full list from snapshot
+      bookingAlerts = [];
+      snapshot.forEach(doc => {
+        bookingAlerts.push({ _id: doc.id, ...doc.data() });
+      });
+
+      renderBookingAlerts();
+
+      // Update sidebar badge
+      const pending = bookingAlerts.filter(b => b.status !== 'dismissed').length;
+      const badge = document.getElementById('alertBadge');
+      if (pending > 0) { badge.textContent = pending; badge.style.display = ''; }
+      else badge.style.display = 'none';
+
+    }, err => {
+      console.error('bookingAlerts listener error', err);
+    });
+}
+
+// Full list of booking alerts (rebuilt from snapshot)
+let bookingAlerts = [];
+
+function renderBookingAlerts() {
+  const container = document.getElementById('bookingAlertsContainer');
+  if (!container) return;
+
+  const countEl = document.getElementById('bookingAlertCount');
+  if (countEl) countEl.textContent = bookingAlerts.length ? `${bookingAlerts.length} request${bookingAlerts.length > 1 ? 's' : ''}` : '';
+
+  if (!bookingAlerts.length) {
+    container.innerHTML = `<div class="alert-item info">
+      <div class="alert-icon-wrap info">🛏️</div>
+      <div class="alert-text">
+        <div class="alert-title">No booking requests yet</div>
+        <div class="alert-sub">When patients submit pre-arrival booking requests, they'll appear here with full patient details.</div>
+      </div>
+    </div>`;
+    return;
+  }
+
+  container.innerHTML = bookingAlerts.map(b => {
+    const urgencyClass = b.urgency || 'Urgent';
+    const status = b.status || 'pending';
+    const ts = b.createdAt?.toDate ? b.createdAt.toDate().toLocaleString('en-IN', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
+
+    const assignedBanner = (status === 'confirmed' && b.assignedUnit) ? `
+      <div style="display:flex;align-items:center;gap:10px;background:rgba(16,217,126,0.1);border:1px solid rgba(16,217,126,0.3);border-radius:10px;padding:11px 14px;margin-bottom:14px;">
+        <span style="font-size:1.3rem;">🛏️</span>
+        <div>
+          <div style="font-size:0.7rem;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:2px;">Assigned Resource</div>
+          <div style="font-family:var(--font-mono);font-size:1rem;font-weight:800;color:var(--white);">${b.assignedUnit}</div>
+          <div style="font-size:0.75rem;color:var(--muted);">${b.assignedResource || ''} — marked Occupied</div>
+        </div>
+      </div>` : '';
+
+    return `<div class="booking-alert-card status-${status}" id="bac-${b._id}">
+      <div class="bac-header" onclick="toggleBookingCard('${b._id}')">
+        <span class="bac-urgency-badge ${urgencyClass}">${urgencyClass === 'Critical' ? '🔴' : urgencyClass === 'Urgent' ? '🟡' : '🟢'} ${urgencyClass}</span>
+        <div style="flex:1;min-width:0;">
+          <div class="bac-title">🧑‍⚕️ ${b.patientName || 'Unknown Patient'}</div>
+          <div class="bac-meta">${b.seatType || 'Bed'} • ${b.problem || 'No problem stated'} • 📞 ${b.phone || '—'}${b.assignedUnit ? ` • <span style="color:var(--green);font-weight:700;">→ ${b.assignedUnit}</span>` : ''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+          <div class="bac-time">${ts}</div>
+          <span class="bac-status-pill ${status}">${status === 'confirmed' ? '✅ Confirmed' : status === 'dismissed' ? '✕ Dismissed' : '⏳ Pending'}</span>
+          <span class="bac-expand-icon">▾</span>
+        </div>
+      </div>
+      <div class="bac-body">
+        ${assignedBanner}
+        <div class="bac-grid">
+          <div class="bac-field">
+            <div class="bac-field-label">📞 Phone</div>
+            <div class="bac-field-value highlight">${b.phone || '—'}</div>
+          </div>
+          <div class="bac-field">
+            <div class="bac-field-label">🩸 Blood Group</div>
+            <div class="bac-field-value">${b.bloodGroup || '—'}</div>
+          </div>
+          <div class="bac-field">
+            <div class="bac-field-label">🎂 Age / Gender</div>
+            <div class="bac-field-value">${b.age || '—'} yrs / ${b.gender || '—'}</div>
+          </div>
+          <div class="bac-field">
+            <div class="bac-field-label">🛏️ Requested</div>
+            <div class="bac-field-value">${b.seatType || '—'}</div>
+          </div>
+          <div class="bac-field">
+            <div class="bac-field-label">⚠️ Allergies</div>
+            <div class="bac-field-value">${b.allergies || 'None mentioned'}</div>
+          </div>
+          <div class="bac-field">
+            <div class="bac-field-label">💊 Medications</div>
+            <div class="bac-field-value">${b.medications || 'None mentioned'}</div>
+          </div>
+        </div>
+
+        <div class="bac-symptoms-box">
+          <div class="bac-field-label" style="margin-bottom:6px;">🤒 Condition & Symptoms</div>
+          <div style="font-size:0.82rem;color:var(--white);font-weight:600;margin-bottom:4px;">${b.problem || '—'}</div>
+          <div style="font-size:0.8rem;color:var(--muted);line-height:1.6;">${b.symptoms || '—'}</div>
+        </div>
+
+        ${b.notes ? `<div class="bac-symptoms-box" style="margin-bottom:14px;">
+          <div class="bac-field-label" style="margin-bottom:6px;">📋 Additional Notes</div>
+          <div style="font-size:0.8rem;color:var(--muted);line-height:1.6;">${b.notes}</div>
+        </div>` : ''}
+
+        <div class="bac-actions">
+          <button class="bac-action-btn call" onclick="callPatient('${(b.phone||'').replace(/\s/g,'')}')">
+            📞 Call Patient
+          </button>
+          ${status !== 'confirmed' ? `<button class="bac-action-btn confirm" onclick="updateBookingStatus('${b._id}','confirmed')">
+            ✅ Confirm & Assign Bed
+          </button>` : ''}
+          ${status !== 'dismissed' ? `<button class="bac-action-btn dismiss" onclick="updateBookingStatus('${b._id}','dismissed')">
+            ✕ Dismiss
+          </button>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleBookingCard(id) {
+  const card = document.getElementById('bac-' + id);
+  if (card) card.classList.toggle('expanded');
+}
+
+function callPatient(phone) {
+  if (!phone) { showToast('⚠️ No phone number available'); return; }
+  window.location.href = 'tel:' + phone;
+}
+
+// Map patient-facing seatType → internal resource key + QR prefix
+const SEAT_TO_RESOURCE = {
+  'General Bed':   { key: 'beds',      prefix: 'BED'  },
+  'ICU Bed':       { key: 'icu',       prefix: 'ICU'  },
+  'Private Room':  { key: 'rooms',     prefix: 'ROOM' },
+  'Oxygen Bed':    { key: 'oxygen',    prefix: 'OXY'  },
+  'Emergency':     { key: 'beds',      prefix: 'BED'  }, // fallback to general bed
+};
+
+async function updateBookingStatus(id, status) {
+  if (!currentUser) { showToast('❌ Not logged in'); return; }
+
+  // If confirming, auto-assign a resource unit
+  if (status === 'confirmed') {
+    const booking = bookingAlerts.find(b => b._id === id);
+    if (!booking) { showToast('❌ Booking not found'); return; }
+
+    const mapping = SEAT_TO_RESOURCE[booking.seatType] || SEAT_TO_RESOURCE['General Bed'];
+    const resourceKey = mapping.key;
+    const prefix      = mapping.prefix;
+    const res         = hospitalData.resources[resourceKey];
+
+    if (!res || res.avail <= 0) {
+      showToast(`⚠️ No available ${res ? res.label : 'resource'} to assign. Please free up a unit first.`);
+      return;
+    }
+
+    // Find the first available unit
+    let assignedUnitId = null;
+    for (let i = 1; i <= res.total; i++) {
+      const unitId = `${prefix}-${String(i).padStart(3,'0')}`;
+      if (getUnitStatus(unitId) === 'available') {
+        assignedUnitId = unitId;
+        break;
+      }
+    }
+
+    if (!assignedUnitId) {
+      showToast(`⚠️ No free unit tile found for ${res.label}. Refresh and try again.`);
+      return;
+    }
+
+    try {
+      const batch = db.batch();
+
+      // 1. Mark the unit as Occupied in the beds subcollection
+      const unitRef = db.collection('hospitals').doc(currentUser.uid)
+        .collection('beds').doc(assignedUnitId);
+      batch.set(unitRef, {
+        id:        assignedUnitId,
+        status:    'Occupied',
+        notes:     `Assigned to patient: ${booking.patientName} (${booking.phone || '—'})`,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      // 2. Update the booking alert — confirmed + assigned unit
+      const alertRef = db.collection('hospitals').doc(currentUser.uid)
+        .collection('bookingAlerts').doc(id);
+      batch.update(alertRef, {
+        status:       'confirmed',
+        assignedUnit: assignedUnitId,
+        assignedResource: res.label,
+        updatedAt:    firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      await batch.commit();
+
+      // 3. Update local ruStatuses cache so UI reflects immediately
+      if (!ruStatuses[assignedUnitId]) ruStatuses[assignedUnitId] = {};
+      ruStatuses[assignedUnitId].status = 'Occupied';
+      ruStatuses[assignedUnitId].notes  = `Assigned to patient: ${booking.patientName}`;
+
+      // 4. Recalculate available count for this resource
+      recalcAvailFromUnits(resourceKey, prefix);
+      rerenderUnitTiles(resourceKey, prefix);
+
+      // 5. Log it
+      addLog(assignedUnitId, 'Occupied', `Patient booking: ${booking.patientName}`);
+
+      showToast(`✅ Confirmed — ${assignedUnitId} assigned to ${booking.patientName}`);
+
+    } catch(err) {
+      console.error(err);
+      showToast('❌ Could not confirm: ' + err.message);
+    }
+
+  } else {
+    // Just a dismiss — no resource changes needed
+    try {
+      await db.collection('hospitals').doc(currentUser.uid)
+        .collection('bookingAlerts').doc(id)
+        .update({ status, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+      showToast('✕ Request dismissed');
+    } catch(err) {
+      console.error(err);
+      showToast('❌ Could not update: ' + err.message);
+    }
+  }
+}
+
+async function markAllBookingsConfirmed() {
+  if (!currentUser) return;
+  const pending = bookingAlerts.filter(b => b.status === 'pending');
+  if (!pending.length) { showToast('ℹ️ No pending requests'); return; }
+  const batch = db.batch();
+  pending.forEach(b => {
+    const ref = db.collection('hospitals').doc(currentUser.uid).collection('bookingAlerts').doc(b._id);
+    batch.update(ref, { status: 'confirmed', updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+  });
+  await batch.commit();
+  showToast(`✅ ${pending.length} booking${pending.length > 1 ? 's' : ''} confirmed`);
+}
+
+// ══════════════════════════════════════════════
+// OCCUPANCY TABLE
+// ══════════════════════════════════════════════
+function renderOccupancyTable() {
+  const r = hospitalData.resources;
+  document.getElementById('occupancyTableBody').innerHTML = Object.entries(r).map(([key,res]) => {
+    const occupied = res.total - res.avail;
+    const occ = res.total ? Math.round((occupied / res.total) * 100) : 0;
+    const badge = occ >= 85 ? 'badge-red' : occ >= 60 ? 'badge-yellow' : 'badge-green';
+    const badgeTxt = occ >= 85 ? 'Critical' : occ >= 60 ? 'Limited' : 'Available';
+    return `<tr>
+      <td><div class="td-name">${res.icon} ${res.label}</div></td>
+      <td><strong>${res.avail}</strong></td>
+      <td>${occupied}</td>
+      <td>${res.total}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="occ-mini-bar"><div class="occ-mini-fill" style="width:${occ}%;background:${occ>=85?'var(--red)':occ>=60?'var(--orange)':'var(--green)'}"></div></div>
+          ${occ}%
+        </div>
+      </td>
+      <td><span class="badge ${badge}">${badgeTxt}</span></td>
+      <td><span style="font-family:var(--font-mono);color:var(--green);font-weight:700;">${res.avail}</span> <span style="font-size:0.7rem;color:var(--muted);">(from unit tiles)</span></td>
+    </tr>`;
+  }).join('');
+}
+function adjustResFromTable(key, val) {
+  const r = hospitalData.resources[key];
+  r.avail = Math.max(0, Math.min(r.total, parseInt(val) || 0));
+  markUnsaved();
+  // Also update resource grid input if visible
+  const el = document.getElementById('res_' + key);
+  if (el) el.value = r.avail;
+  updateBar(key);
+}
+
+// ══════════════════════════════════════════════
+// WARDS
+// ══════════════════════════════════════════════
+function renderWards() {
+  document.getElementById('wardGrid').innerHTML = WARDS_DATA.map(w => {
+    const occ = Math.round(((w.beds - w.avail) / w.beds) * 100);
+    const barColor = occ >= 85 ? 'var(--red)' : occ >= 60 ? 'var(--orange)' : 'var(--green)';
+    const badge = occ >= 85 ? 'badge-red' : occ >= 60 ? 'badge-yellow' : 'badge-green';
+    return `<div class="ward-card">
+      <div class="ward-top">
+        <div><div class="ward-name">${w.name}</div><div class="ward-dept">${w.dept}</div></div>
+        <span class="badge ${badge}">${occ >= 85 ? 'Critical' : occ >= 60 ? 'Limited' : 'Available'}</span>
+      </div>
+      <div class="ward-nums">
+        <div class="ward-num-item"><div class="ward-num-val" style="color:var(--green)">${w.avail}</div><div class="ward-num-lbl">Available</div></div>
+        <div class="ward-num-item"><div class="ward-num-val" style="color:var(--orange)">${w.beds - w.avail}</div><div class="ward-num-lbl">Occupied</div></div>
+        <div class="ward-num-item"><div class="ward-num-val">${w.beds}</div><div class="ward-num-lbl">Total</div></div>
+      </div>
+      <div class="ward-bar"><div class="ward-bar-fill" style="width:${occ}%;background:${barColor}"></div></div>
+      <div style="font-size:0.72rem;color:var(--muted);margin-top:8px;">Staff on duty: ${w.staff}</div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════
+// RESOURCE UPDATES — live status board
+// ══════════════════════════════════════════════
+
+// All individual resource scans fetched from Firestore
+let ruStatuses   = {};      // { "BED-001": { status, notes, updatedAt }, … }
+let ruFilter     = 'all';
+let ruSelected   = null;    // currently selected card id
+let ruSelectedStatus = null;
+
+// Map QR prefix → resource metadata
+const RU_PREFIX_MAP = {
+  BED:  { label:'Bed',          icon:'🛏️' },
+  ICU:  { label:'ICU Bed',      icon:'🏥' },
+  VENT: { label:'Ventilator',   icon:'💨' },
+  OT:   { label:'OT Room',      icon:'🔬' },
+  AMB:  { label:'Ambulance',    icon:'🚑' },
+  OXY:  { label:'Oxygen Bed',   icon:'🫁' },
+  ROOM: { label:'Private Room', icon:'🚪' },
+  BLD:  { label:'Blood Unit',   icon:'🩸' }
+};
+
+// ── Fetch ALL beds sub-collection docs from Firestore ──
+async function refreshAllStatuses() {
+  if (!currentHospitalId) return;
+  try {
+    const snap = await db.collection('hospitals')
+      .doc(currentHospitalId)
+      .collection('beds')
+      .orderBy('updatedAt', 'desc')
+      .get();
+    ruStatuses = {};
+    snap.forEach(doc => { ruStatuses[doc.id] = doc.data(); });
+    renderRuGrid();
+    const now = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const el = document.getElementById('ruLastRefresh');
+    if (el) el.textContent = 'Last refreshed: ' + now;
+    showToast('🔄 Statuses refreshed from Firebase');
+  } catch(err) {
+    console.error(err);
+    showToast('❌ Could not fetch statuses: ' + err.message);
+  }
+}
+
+// ── Subscribe to real-time updates via onSnapshot ──
+let ruUnsubscribe = null;
+function startRuListener() {
+  if (!currentHospitalId) return;
+  if (ruUnsubscribe) ruUnsubscribe();
+  ruUnsubscribe = db.collection('hospitals')
+    .doc(currentHospitalId)
+    .collection('beds')
+    .onSnapshot(snap => {
+      snap.docChanges().forEach(change => {
+        if (change.type === 'removed') {
+          delete ruStatuses[change.doc.id];
+        } else {
+          ruStatuses[change.doc.id] = change.doc.data();
+          // If from a QR scan on another device, recalculate this resource's avail
+          const docId  = change.doc.id;
+          const prefix = docId.split('-')[0];
+          const rKey   = Object.keys(KEY_TO_PREFIX).find(k => KEY_TO_PREFIX[k] === prefix);
+          if (rKey) {
+            recalcAvailFromUnits(rKey, prefix);
+            rerenderUnitTiles(rKey, prefix);
+          }
+        }
+      });
+      renderRuGrid();
+      const now = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      const el = document.getElementById('ruLastRefresh');
+      if (el) el.textContent = 'Live · ' + now;
+    }, err => {
+      console.error('ruListener error', err);
+    });
+}
+
+// ── Render the status grid ──
+function renderRuGrid() {
+  const grid = document.getElementById('ruGrid');
+  if (!grid) return;
+
+  const searchVal = (document.getElementById('ruSearchInput')?.value || '').toUpperCase().trim();
+
+  let entries = Object.entries(ruStatuses);
+
+  // Sort: latest updatedAt first
+  entries.sort(([,a],[,b]) => {
+    const ta = a.updatedAt ? (a.updatedAt.toDate ? a.updatedAt.toDate() : new Date(a.updatedAt)) : new Date(0);
+    const tb = b.updatedAt ? (b.updatedAt.toDate ? b.updatedAt.toDate() : new Date(b.updatedAt)) : new Date(0);
+    return tb - ta;
+  });
+
+  // Search filter
+  if (searchVal) {
+    entries = entries.filter(([id]) => id.includes(searchVal));
+  }
+
+  // Status filter
+  if (ruFilter !== 'all') {
+    entries = entries.filter(([, d]) => (d.status || 'Unknown') === ruFilter);
+  }
+
+  if (!entries.length) {
+    grid.innerHTML = `<div class="ru-empty">
+      <div style="font-size:2rem;margin-bottom:10px;">${searchVal ? '🔍' : '📭'}</div>
+      <div style="font-weight:600;margin-bottom:4px;">${searchVal ? 'No match found' : 'No resources scanned yet'}</div>
+      <div style="font-size:0.78rem;color:var(--muted);">Scan a QR code to add a resource status, or click Refresh All to load from database.</div>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = entries.map(([id, d]) => {
+    const status    = d.status || 'Unknown';
+    const statusCls = status === 'Available' ? 'available' : status === 'Occupied' || status === 'In Use' ? 'occupied' : status === 'Maintenance' ? 'maintenance' : 'unknown';
+    const badgeMap  = { Available:'available', Occupied:'occupied', 'In Use':'occupied', Maintenance:'maintenance' };
+    const dotColor  = { Available:'var(--green)', Occupied:'var(--red)', 'In Use':'var(--red)', Maintenance:'var(--orange)' }[status] || 'var(--muted)';
+    const prefix    = id.split('-')[0];
+    const meta      = RU_PREFIX_MAP[prefix] || { label:'Resource', icon:'📦' };
+    const notes     = d.notes || '';
+    const ts        = d.updatedAt ? (d.updatedAt.toDate ? d.updatedAt.toDate().toLocaleString('en-IN') : new Date(d.updatedAt).toLocaleString('en-IN')) : '—';
+    const isSelected = ruSelected === id;
+    return `<div class="ru-card status-${statusCls}${isSelected?' selected':''}" onclick="selectRuCard('${id}','${meta.label}','${status}','${notes.replace(/'/g,"\\'")}')">
+      <div class="ru-card-top">
+        <span class="ru-card-icon">${meta.icon}</span>
+        <span class="ru-card-status-badge ${badgeMap[status]||'unknown'}">
+          <span class="ru-dot" style="background:${dotColor}"></span>${status}
+        </span>
+      </div>
+      <div class="ru-card-name">${meta.label}</div>
+      <div class="ru-card-id">${id}</div>
+      <div class="ru-card-notes">${notes || '<span style="opacity:0.4">No notes</span>'}</div>
+      <div class="ru-card-time">${ts}</div>
+      <div class="ru-card-edit-hint">✏️ Click to update status</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Filter ──
+function setRuFilter(val, btn) {
+  ruFilter = val;
+  document.querySelectorAll('.ru-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderRuGrid();
+}
+
+// ── Search ──
+function onRuSearch(val) {
+  renderRuGrid();
+  // If exact ID match → auto-select
+  const upper = val.toUpperCase().trim();
+  if (upper && ruStatuses[upper]) {
+    const d = ruStatuses[upper];
+    const prefix = upper.split('-')[0];
+    const meta = RU_PREFIX_MAP[prefix] || { label:'Resource', icon:'📦' };
+    selectRuCard(upper, meta.label, d.status || 'Unknown', d.notes || '');
+  }
+}
+
+// ── Card selection ──
+function selectRuCard(id, name, currentStatus, notes) {
+  ruSelected = id;
+  ruSelectedStatus = currentStatus;
+  renderRuGrid();
+
+  const panel = document.getElementById('ruUpdatePanel');
+  document.getElementById('ruPanelTitle').textContent = name + ' — ' + id;
+  document.getElementById('ruPanelId').textContent    = id;
+  document.getElementById('ruPanelNotes').value       = notes || '';
+  panel.style.display = 'block';
+  panel.scrollIntoView({ behavior:'smooth', block:'nearest' });
+
+  // Highlight the matching status button
+  document.querySelectorAll('.ru-status-btn').forEach(btn => {
+    const s = btn.dataset.status;
+    btn.classList.toggle('selected', s === currentStatus || (s === 'Occupied' && currentStatus === 'In Use'));
+  });
+}
+
+function selectRuStatus(btn) {
+  document.querySelectorAll('.ru-status-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  ruSelectedStatus = btn.dataset.status;
+}
+
+function closeRuPanel() {
+  ruSelected = null;
+  ruSelectedStatus = null;
+  document.getElementById('ruUpdatePanel').style.display = 'none';
+  renderRuGrid();
+}
+
+// ── Submit a status update ──
+async function submitRuUpdate() {
+  if (!ruSelected)       { showToast('⚠️ No resource selected'); return; }
+  if (!ruSelectedStatus) { showToast('⚠️ Please choose a status'); return; }
+  if (!currentHospitalId){ showToast('❌ Not logged in'); return; }
+
+  const notes = document.getElementById('ruPanelNotes').value.trim();
+  const qrId  = ruSelected;
+  const status = ruSelectedStatus;
+
+  try {
+    await db.collection('hospitals')
+      .doc(currentHospitalId)
+      .collection('beds')
+      .doc(qrId)
+      .set({
+        id:        qrId,
+        status:    status,
+        notes:     notes,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+
+    // Update aggregate resource count
+    const prefixMap = { BED:'beds', ICU:'icu', VENT:'ventilators', OT:'ot', AMB:'ambulance', OXY:'oxygen', ROOM:'rooms', BLD:'blood' };
+    const prefix     = qrId.split('-')[0];
+    const resourceKey = prefixMap[prefix] || null;
+    if (resourceKey && hospitalData.resources[resourceKey]) {
+      const res = hospitalData.resources[resourceKey];
+      const prev = ruStatuses[qrId]?.status;
+      if (status === 'Available' && prev !== 'Available')  res.avail = Math.min(res.total, res.avail + 1);
+      if (status !== 'Available' && prev === 'Available')  res.avail = Math.max(0, res.avail - 1);
+      const rp = {}; rp[`resources.${resourceKey}.avail`] = res.avail;
+      await db.collection('hospitals').doc(currentHospitalId).update(rp);
+    }
+
+    // Add to scan history log
+    addLog(qrId, status, notes);
+
+    showToast(`✅ ${qrId} → ${status}`);
+    closeRuPanel();
+    applyHospitalToUI();
+    generateAlerts();
+
+  } catch(err) {
+    console.error(err);
+    showToast('❌ Update failed: ' + err.message);
+  }
+}
+
+// ── SCAN HISTORY LOG (replaces old admission log) ──
+function addLog(resourceId, status, notes) {
+  const statusColor = { Available:'var(--green)', Occupied:'var(--red)', 'In Use':'var(--red)', Maintenance:'var(--orange)' }[status] || 'var(--muted)';
+  changeLog.unshift({ ts: new Date(), resourceId, status, statusColor, notes });
+  renderLog();
+}
+
+function renderLog() {
+  const tbody = document.getElementById('logTableBody');
+  if (!tbody) return;
+  const countEl = document.getElementById('logCount');
+  if (countEl) countEl.textContent = `${changeLog.length} entries`;
+  if (!changeLog.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px;">No QR scans this session</td></tr>';
+    return;
+  }
+  tbody.innerHTML = changeLog.map(e => {
+    const prefix = e.resourceId ? e.resourceId.split('-')[0] : '';
+    const meta   = RU_PREFIX_MAP[prefix] || { label:'Resource', icon:'📦' };
+    return `<tr>
+      <td class="log-date">${e.ts.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</td>
+      <td style="font-family:var(--font-mono);color:var(--blue-bright)">${e.resourceId || '—'}</td>
+      <td><span style="color:${e.statusColor||'var(--muted)'};font-weight:600">● ${e.status}</span></td>
+      <td style="color:var(--muted);font-size:0.78rem;">${e.notes || '—'}</td>
+      <td style="font-size:0.75rem;color:var(--muted);">${meta.icon} ${meta.label}</td>
+    </tr>`;
+  }).join('');
+}
+
+function clearLog() { changeLog = []; renderLog(); showToast('🗑 Scan history cleared'); }
+
+// ══════════════════════════════════════════════
+// ALERTS
+// ══════════════════════════════════════════════
+function generateAlerts() {
+  const r = hospitalData.resources;
+  const thrBeds = parseInt(document.getElementById('thr_beds').value) || 5;
+  const thrIcu  = parseInt(document.getElementById('thr_icu').value)  || 2;
+  const thrVent = parseInt(document.getElementById('thr_vent').value) || 2;
+  const thrOt   = parseInt(document.getElementById('thr_ot').value)   || 1;
+  alerts = [];
+  if (r.beds.avail        <= thrBeds) alerts.push({ type:'critical', icon:'🛏️', title:`Low General Beds — Only ${r.beds.avail} available`,        sub:`Below critical threshold of ${thrBeds}` });
+  if (r.icu.avail         <= thrIcu)  alerts.push({ type:'critical', icon:'🏥', title:`ICU Critical — ${r.icu.avail} beds remaining`,              sub:`Below threshold of ${thrIcu}` });
+  if (r.ventilators.avail <= thrVent) alerts.push({ type:'warning',  icon:'💨', title:`Ventilator Warning — ${r.ventilators.avail} available`,     sub:`Approaching minimum of ${thrVent}` });
+  if (r.ot.avail          <= thrOt)   alerts.push({ type:'warning',  icon:'🔬', title:`OT Rooms Low — ${r.ot.avail} free`,                         sub:`Below warning level of ${thrOt}` });
+  renderAlerts();
+  renderAlertPreview();
+  // Update badge — combine system alerts + pending bookings
+  const pendingBookings = (bookingAlerts || []).filter(b => b.status !== 'dismissed' && b.status !== 'confirmed').length;
+  const total = alerts.length + pendingBookings;
+  const badge = document.getElementById('alertBadge');
+  if (total > 0) { badge.textContent = total; badge.style.display = ''; }
+  else           { badge.style.display = 'none'; }
+}
+function checkAlertThreshold(key, val) {
+  const thrMap = { beds:'thr_beds', icu:'thr_icu', ventilators:'thr_vent', ot:'thr_ot' };
+  if (thrMap[key]) {
+    const thr = parseInt(document.getElementById(thrMap[key]).value) || 0;
+    if (val <= thr) showToast(`⚠️ ${hospitalData.resources[key].label} below threshold!`);
+  }
+  generateAlerts();
+}
+function renderAlerts() {
+  const el = document.getElementById('alertsContainer');
+  if (!alerts.length) {
+    el.innerHTML = '<div class="alert-item info"><div class="alert-icon-wrap info">✅</div><div class="alert-text"><div class="alert-title">No active alerts</div><div class="alert-sub">All resources are within safe thresholds.</div></div></div>';
+    return;
+  }
+  el.innerHTML = alerts.map((a, i) => `
+    <div class="alert-item ${a.type}">
+      <div class="alert-icon-wrap ${a.type}">${a.icon}</div>
+      <div class="alert-text">
+        <div class="alert-title">${a.title}</div>
+        <div class="alert-sub">${a.sub}</div>
+      </div>
+      <button class="alert-dismiss" onclick="dismissAlert(${i})">✕</button>
+    </div>`).join('');
+}
+function renderAlertPreview() {
+  const el = document.getElementById('alertPreview');
+  if (!el) return;
+
+  const pendingBookings = (bookingAlerts || []).filter(b => b.status !== 'dismissed');
+  const allItems = [];
+
+  // Prepend pending bookings first (most important)
+  pendingBookings.slice(0,2).forEach(b => {
+    allItems.push({
+      type: 'info',
+      icon: '🛏️',
+      title: `Patient Request: ${b.patientName || 'Unknown'} — ${b.seatType || 'Bed'}`,
+      sub: `📞 ${b.phone || '—'} • ${b.problem || ''} • ${b.urgency || ''} urgency`,
+      isBooking: true
+    });
+  });
+
+  alerts.slice(0, 2).forEach(a => allItems.push(a));
+
+  if (!allItems.length) {
+    el.innerHTML = '<div class="alert-item info"><div class="alert-icon-wrap info">✅</div><div class="alert-text"><div class="alert-title">All clear</div><div class="alert-sub">No active alerts or pending bookings.</div></div></div>';
+    return;
+  }
+  el.innerHTML = allItems.slice(0, 3).map((a, i) => `
+    <div class="alert-item ${a.type}" style="${a.isBooking ? 'cursor:pointer;' : ''}" ${a.isBooking ? "onclick=\"showTab('alerts')\"" : ''}>
+      <div class="alert-icon-wrap ${a.type}">${a.icon}</div>
+      <div class="alert-text">
+        <div class="alert-title">${a.title}</div>
+        <div class="alert-sub">${a.sub}</div>
+      </div>
+      ${!a.isBooking ? `<button class="alert-dismiss" onclick="event.stopPropagation();dismissAlert(${i})">✕</button>` : '<span style="font-size:0.72rem;color:var(--blue-bright);white-space:nowrap;flex-shrink:0;">View →</span>'}
+    </div>`).join('');
+}
+function dismissAlert(i) {
+  alerts.splice(i, 1);
+  renderAlerts();
+  renderAlertPreview();
+  const badge = document.getElementById('alertBadge');
+  if (alerts.length) { badge.textContent = alerts.length; badge.style.display = ''; }
+  else               { badge.style.display = 'none'; }
+  showToast('Alert dismissed');
+}
+function dismissAllAlerts() {
+  alerts = [];
+  renderAlerts();
+  renderAlertPreview();
+  document.getElementById('alertBadge').style.display = 'none';
+  showToast('✅ All alerts dismissed');
+}
+
+// ══════════════════════════════════════════════
+// UNSAVED / SAVED STATE
+// ══════════════════════════════════════════════
+function markUnsaved() {
+  document.getElementById('unsavedChip').classList.add('visible');
+  const btn = document.getElementById('saveBtn');
+  btn.classList.remove('saved');
+  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/></svg> Save to DB`;
+}
+function markSaved() {
+  document.getElementById('unsavedChip').classList.remove('visible');
+  const btn = document.getElementById('saveBtn');
+  btn.classList.add('saved');
+  btn.innerHTML = `✓ Saved`;
+  const now = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('lastSynced').textContent = now;
+  setTimeout(() => {
+    btn.classList.remove('saved');
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/></svg> Save to DB`;
+  }, 3000);
+}
+
+// ══════════════════════════════════════════════
+// NAV TABS
+// ══════════════════════════════════════════════
+function showTab(name) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  const tabMap = { overview:0, resources:1, occupancy:2, wards:3, log:4, alerts:5, settings:6 };
+  const navItems = document.querySelectorAll('.nav-item');
+  if (navItems[tabMap[name]]) navItems[tabMap[name]].classList.add('active');
+  if (name === 'log')      { renderLog(); refreshAllStatuses(); }
+  if (name === 'qrcodes')  initQrTab();
+  if (name === 'alerts')   renderAlerts();
+  if (name === 'overview') renderAlertPreview();
+}
+
+// ══════════════════════════════════════════════
+// DATE RANGE
+// ══════════════════════════════════════════════
+function setDateRange(btn, range) {
+  document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const now = new Date();
+  const fmt = d => d.toISOString().split('T')[0];
+  if (range === 'today') {
+    document.getElementById('dateFrom').value = fmt(now);
+    document.getElementById('dateTo').value   = fmt(now);
+  } else if (range === 'week') {
+    const start = new Date(now); start.setDate(now.getDate() - 6);
+    document.getElementById('dateFrom').value = fmt(start);
+    document.getElementById('dateTo').value   = fmt(now);
+  } else {
+    const start = new Date(now); start.setDate(1);
+    document.getElementById('dateFrom').value = fmt(start);
+    document.getElementById('dateTo').value   = fmt(now);
+  }
+  showToast('📅 Date range updated');
+}
+function applyCustomDate() {
+  const from = document.getElementById('dateFrom').value;
+  const to   = document.getElementById('dateTo').value;
+  if (!from || !to) { showToast('⚠️ Please select both dates'); return; }
+  showToast(`📅 Showing ${from} to ${to}`);
+}
+
+// ══════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+// ══════════════════════════════════════════════
+// AUTO-CLEANUP SYSTEM
+// ══════════════════════════════════════════════
+
+// Duration map → milliseconds (null = never)
+const CLEANUP_DURATIONS = {
+  never: null,
+  '1h':  1  * 60 * 60 * 1000,
+  '6h':  6  * 60 * 60 * 1000,
+  '12h': 12 * 60 * 60 * 1000,
+  '24h': 24 * 60 * 60 * 1000,
+  '3d':  3  * 24 * 60 * 60 * 1000,
+  '7d':  7  * 24 * 60 * 60 * 1000,
+};
+
+const CLEANUP_LABELS = {
+  never: 'Never — auto-cleanup disabled',
+  '1h':  'Older than 1 hour',
+  '6h':  'Older than 6 hours',
+  '12h': 'Older than 12 hours',
+  '24h': 'Older than 24 hours',
+  '3d':  'Older than 3 days',
+  '7d':  'Older than 7 days',
+};
+
+// Load saved preferences
+function loadCleanupPrefs() {
+  const ruVal = localStorage.getItem('medv_cleanup_ru') || 'never';
+  const baVal = localStorage.getItem('medv_cleanup_ba') || 'never';
+  _applyCleanupBtn('ru', ruVal);
+  _applyCleanupBtn('ba', baVal);
+  updateCleanupStatus('ru', ruVal);
+  updateCleanupStatus('ba', baVal);
+}
+
+function _applyCleanupBtn(type, val) {
+  const btns = document.querySelectorAll(`#${type}CleanupBtns .cleanup-option-btn`);
+  btns.forEach(b => b.classList.toggle('active', b.dataset.val === val));
+}
+
+function selectCleanup(type, val, btn) {
+  localStorage.setItem(`medv_cleanup_${type}`, val);
+  _applyCleanupBtn(type, val);
+  updateCleanupStatus(type, val);
+  showToast(`✅ ${type === 'ru' ? 'Resource updates' : 'Booking requests'} will auto-delete: ${CLEANUP_LABELS[val]}`);
+}
+
+function updateCleanupStatus(type, val) {
+  const el = document.getElementById(`${type}CleanupStatus`);
+  if (!el) return;
+  if (val === 'never') {
+    el.innerHTML = '<span style="color:var(--muted)">⏸ Auto-cleanup is off</span>';
+  } else {
+    el.innerHTML = `<span style="color:var(--cyan)">⏱ Will delete entries ${CLEANUP_LABELS[val].toLowerCase()}</span>`;
+  }
+}
+
+// Run cleanup for Resource Status Updates (Firestore beds sub-collection)
+async function cleanupResourceUpdates(maxAgeMs) {
+  if (!currentHospitalId || !maxAgeMs) return 0;
+  const cutoff = new Date(Date.now() - maxAgeMs);
+  try {
+    const snap = await db.collection('hospitals')
+      .doc(currentHospitalId)
+      .collection('beds')
+      .where('updatedAt', '<', cutoff)
+      .get();
+    const batch = db.batch();
+    snap.forEach(doc => batch.delete(doc.ref));
+    if (!snap.empty) await batch.commit();
+    return snap.size;
+  } catch(err) {
+    console.error('RU cleanup error:', err);
+    return 0;
+  }
+}
+
+// Run cleanup for Booking Alerts (Firestore bookingAlerts sub-collection)
+async function cleanupBookingAlerts(maxAgeMs) {
+  if (!currentHospitalId || !maxAgeMs) return 0;
+  const cutoff = new Date(Date.now() - maxAgeMs);
+  try {
+    const snap = await db.collection('hospitals')
+      .doc(currentHospitalId)
+      .collection('bookingAlerts')
+      .where('createdAt', '<', cutoff)
+      .get();
+    const batch = db.batch();
+    snap.forEach(doc => batch.delete(doc.ref));
+    if (!snap.empty) await batch.commit();
+    return snap.size;
+  } catch(err) {
+    console.error('BA cleanup error:', err);
+    return 0;
+  }
+}
+
+// Manual "Clean Up Now" button
+async function runCleanupNow(type) {
+  const val = localStorage.getItem(`medv_cleanup_${type}`) || 'never';
+  if (val === 'never') {
+    showToast('⚠️ Auto-cleanup is set to Never — choose a time window first');
+    return;
+  }
+  const maxAgeMs = CLEANUP_DURATIONS[val];
+  showToast('🔄 Running cleanup…');
+  let deleted = 0;
+  if (type === 'ru') deleted = await cleanupResourceUpdates(maxAgeMs);
+  else               deleted = await cleanupBookingAlerts(maxAgeMs);
+  if (deleted > 0) {
+    showToast(`🗑️ Deleted ${deleted} old entr${deleted === 1 ? 'y' : 'ies'}`);
+  } else {
+    showToast('✅ Nothing to clean up — all entries are recent');
+  }
+}
+
+// Auto-run cleanup on load and every hour
+async function runAutoCleanup() {
+  const ruVal = localStorage.getItem('medv_cleanup_ru') || 'never';
+  const baVal = localStorage.getItem('medv_cleanup_ba') || 'never';
+  const ruMs  = CLEANUP_DURATIONS[ruVal];
+  const baMs  = CLEANUP_DURATIONS[baVal];
+  let total = 0;
+  if (ruMs) total += await cleanupResourceUpdates(ruMs);
+  if (baMs) total += await cleanupBookingAlerts(baMs);
+  if (total > 0) showToast(`🧹 Auto-cleaned ${total} old entr${total === 1 ? 'y' : 'ies'}`);
+}
+
+// Init cleanup on app load (after auth is ready)
+function initCleanup() {
+  loadCleanupPrefs();
+  runAutoCleanup();
+  // Re-run every hour
+  setInterval(runAutoCleanup, 60 * 60 * 1000);
+}
+</script>
+
+<!-- ══ QR SCAN RESULT MODAL ══ -->
+<div class="print-overlay" id="qrScanOverlay" style="display:none;align-items:center;justify-content:center;">
+  <div class="print-modal" style="max-width:360px;">
+    <h3>📷 QR Code Scanned</h3>
+    <p id="qrScanInfo" style="margin-bottom:16px;font-size:0.82rem;color:var(--muted);">Unit detected</p>
+    <div class="form-field">
+      <label>Set Status</label>
+      <select id="qr-status" style="width:100%;padding:9px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--white);font-family:var(--font-body);font-size:0.85rem;outline:none;color-scheme:dark;">
+        <option value="Available">Available</option>
+        <option value="Occupied">Occupied</option>
+        <option value="In Use">In Use</option>
+        <option value="Maintenance">Maintenance</option>
+      </select>
+    </div>
+    <div class="form-field">
+      <label>Notes (optional)</label>
+      <input type="text" id="qr-notes" placeholder="e.g. cleaned, needs repair…"
+        style="width:100%;padding:9px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--white);font-family:var(--font-body);font-size:0.85rem;outline:none;" />
+    </div>
+    <div class="print-modal-btns">
+      <button class="print-modal-btn" onclick="closeQrScanner()">Cancel</button>
+      <button class="print-modal-btn primary" onclick="confirmQrUpdate()">✅ Confirm Update</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openQrScanner(qrDataObj) {
+  // qrDataObj can be the parsed JSON object from a QR scan, or a plain id string
+  currentQrData = qrDataObj;
+  const id   = (typeof qrDataObj === 'object') ? qrDataObj.id   : qrDataObj;
+  const name = (typeof qrDataObj === 'object') ? qrDataObj.name : qrDataObj;
+  document.getElementById('qrScanInfo').textContent = `Unit: ${name || id}`;
+  document.getElementById('qr-notes').value = '';
+  document.getElementById('qr-status').value = 'Available';
+  const overlay = document.getElementById('qrScanOverlay');
+  overlay.style.display = 'flex';
+}
+
+function closeQrScanner() {
+  document.getElementById('qrScanOverlay').style.display = 'none';
+  currentQrData = null;
+}
+
+// Close on backdrop click
+document.getElementById('qrScanOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeQrScanner();
+});
+</script>
+
+
+<div class="print-overlay" id="printOverlay">
+  <div class="print-modal">
+    <h3>Print Bed Label</h3>
+    <p>Stick this on the physical bed. Staff scan it to update status instantly.</p>
+    <div class="print-label" id="printLabel">
+      <span class="pl-hosp" id="pl-hosp"></span>
+      <div id="pl-qr"></div>
+      <span class="pl-name" id="pl-name"></span>
+      <span class="pl-loc"  id="pl-loc"></span>
+      <span class="pl-id"   id="pl-id"></span>
+    </div>
+    <div class="print-modal-btns">
+      <button class="print-modal-btn" onclick="closePrintModal()">Cancel</button>
+      <button class="print-modal-btn primary" onclick="window.print()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:inline;vertical-align:-2px;margin-right:4px;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Print Label
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+//  QR CODES TAB
+//  — Generates QR codes for each resource/bed type
+//  — QR data format matches the scanner's expected JSON:
+//    { id, name, type, loc, hospital, hospitalId }
+//  — hospitalId = currentUser.uid (Firestore doc ID)
+// ══════════════════════════════════════════════════════════
+
+const QR_TYPES = [
+  { key:'beds',        label:'General Beds', icon:'🛏️',  prefix:'BED',  typeLabel:'General Bed'  },
+  { key:'icu',         label:'ICU Beds',     icon:'🏥',  prefix:'ICU',  typeLabel:'ICU Bed'      },
+  { key:'ventilators', label:'Ventilators',  icon:'💨',  prefix:'VENT', typeLabel:'Ventilator'   },
+  { key:'ot',          label:'OT Rooms',     icon:'🔬',  prefix:'OT',   typeLabel:'OT Room'      },
+  { key:'ambulance',   label:'Ambulances',   icon:'🚑',  prefix:'AMB',  typeLabel:'Ambulance'    },
+  { key:'oxygen',      label:'Oxygen Beds',  icon:'🫁',  prefix:'OXY',  typeLabel:'Oxygen Bed'   },
+  { key:'rooms',       label:'Private Rooms',icon:'🚪',  prefix:'ROOM', typeLabel:'Private Room' },
+  { key:'blood',       label:'Blood Units',  icon:'🩸',  prefix:'BLD',  typeLabel:'Blood Unit'   },
+];
+
+let activeQrType = QR_TYPES[0];
+let qrInstances  = {};   // { id: QRCode instance }
+// currentHospitalId and currentQrData are declared in the main script block above
+
+// Called when QR tab is opened (via showTab patch below)
+function initQrTab() {
+  renderQrTypeTabs();
+  renderQrGrid();
+}
+
+function renderQrTypeTabs() {
+  document.getElementById('qrTypeTabs').innerHTML = QR_TYPES.map(t => `
+    <button class="qr-type-btn ${t.key === activeQrType.key ? 'active' : ''}"
+      onclick="switchQrType('${t.key}')">
+      ${t.icon} ${t.label}
+    </button>`).join('');
+}
+
+function switchQrType(key) {
+  activeQrType = QR_TYPES.find(t => t.key === key);
+  renderQrTypeTabs();
+  renderQrGrid();
+}
+
+function renderQrGrid() {
+  const type = activeQrType;
+  const total = hospitalData.resources[type.key]?.total || 10;
+
+  // Build the batch range for display (1 to total, capped at 50)
+  const count = Math.min(total, 50);
+  const grid = document.getElementById('qrGrid');
+  grid.innerHTML = '';
+  qrInstances = {};
+
+  for (let i = 1; i <= count; i++) {
+    const id   = `${type.prefix}-${String(i).padStart(3,'0')}`;
+    const name = `${type.typeLabel} #${i}`;
+    const card = document.createElement('div');
+    card.className = 'qr-card';
+    card.id = 'qr-card-' + id;
+    card.innerHTML = `
+      <span class="qr-card-icon">${type.icon}</span>
+      <div class="qr-card-name">${name}</div>
+      <div class="qr-card-id">${id}</div>
+      <div class="qr-canvas-wrap" id="qrwrap-${id}"></div>
+      <div class="qr-card-btns">
+        <button class="qr-card-btn" onclick="downloadQr('${id}','${name}')">
+          ⬇ Download
+        </button>
+        <button class="qr-card-btn primary" onclick="openPrintModal('${id}','${name}','${type.typeLabel}')">
+          🖨 Print
+        </button>
+      </div>`;
+    grid.appendChild(card);
+    generateQrForCard(id, name, type.typeLabel);
+  }
+}
+
+// ── QR URL BUILDER ──
+// Reads the deployed public URL from localStorage so QR codes work on any phone.
+// Set it once in Settings → QR Scan URL.
+function getBaseScanUrl() {
+  const saved = localStorage.getItem('medv_scan_url');
+  if (saved && saved.startsWith('http')) return saved.replace(/\/$/, '');
+  // Fallback: auto-detect (only works if already hosted online)
+  const origin = window.location.origin;
+  const path   = window.location.pathname.replace('hospital-home.html', 'medvyavastha_integrated.html');
+  return origin + path;
+}
+
+function buildQrUrl(id, name, typeLabel) {
+  const params = new URLSearchParams({
+    scan:       id,
+    hospitalId: currentUser ? currentUser.uid : '',
+    type:       typeLabel,
+    name:       name,
+    hospital:   hospitalData.name || '',
+    loc:        hospitalData.city || '',
+  });
+  return getBaseScanUrl() + '?' + params.toString();
+}
+
+// Keep JSON fallback for backward compat with older scanners
+function buildQrData(id, name, typeLabel) {
+  return {
+    id, name, type: typeLabel,
+    loc:        hospitalData.city || '',
+    hospital:   hospitalData.name || '',
+    hospitalId: currentUser ? currentUser.uid : '',
+  };
+}
+
+function generateQrForCard(id, name, typeLabel) {
+  const wrap = document.getElementById('qrwrap-' + id);
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  // Encode URL → any phone camera opens the scanner page directly
+  const url  = buildQrUrl(id, name, typeLabel);
+  const data = buildQrData(id, name, typeLabel);
+  const qr = new QRCode(wrap, {
+    text: url,
+    width: 120, height: 120,
+    colorDark: '#0f2044', colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+  qrInstances[id] = { qr, data, url };
+}
+
+// ── DOWNLOAD SINGLE QR ──
+function downloadQr(id, name) {
+  const wrap = document.getElementById('qrwrap-' + id);
+  if (!wrap) return;
+  const canvas = wrap.querySelector('canvas');
+  if (!canvas) { showToast('⚠️ QR not ready yet'); return; }
+  const a = document.createElement('a');
+  a.download = id + '.png';
+  a.href = canvas.toDataURL();
+  a.click();
+  showToast('⬇ Downloaded ' + id);
+}
+
+// ── PRINT MODAL ──
+function openPrintModal(id, name, typeLabel) {
+  const wrap = document.getElementById('qrwrap-' + id);
+  if (!wrap) return;
+  const canvas = wrap.querySelector('canvas');
+  if (!canvas) { showToast('⚠️ QR not ready'); return; }
+
+  document.getElementById('pl-hosp').textContent = hospitalData.name || 'Hospital';
+  document.getElementById('pl-name').textContent = name;
+  document.getElementById('pl-loc').textContent  = hospitalData.city || '';
+  document.getElementById('pl-id').textContent   = id;
+
+  // Render QR in modal
+  const plQr = document.getElementById('pl-qr');
+  plQr.innerHTML = '';
+  const url = buildQrUrl(id, name, typeLabel);
+  new QRCode(plQr, {
+    text: url,
+    width: 140, height: 140,
+    colorDark: '#0f2044', colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+
+  document.getElementById('printOverlay').classList.add('open');
+}
+
+function closePrintModal() {
+  document.getElementById('printOverlay').classList.remove('open');
+}
+
+// ── BATCH GENERATE (custom range) ──
+function generateBatch() {
+  const from = parseInt(document.getElementById('batchFrom').value) || 1;
+  const to   = Math.min(parseInt(document.getElementById('batchTo').value) || 10, 100);
+  if (from > to) { showToast('⚠️ "From" must be ≤ "To"'); return; }
+
+  const type = activeQrType;
+  const grid = document.getElementById('qrGrid');
+  grid.innerHTML = '';
+  qrInstances = {};
+
+  for (let i = from; i <= to; i++) {
+    const id   = `${type.prefix}-${String(i).padStart(3,'0')}`;
+    const name = `${type.typeLabel} #${i}`;
+    const card = document.createElement('div');
+    card.className = 'qr-card';
+    card.id = 'qr-card-' + id;
+    card.innerHTML = `
+      <span class="qr-card-icon">${type.icon}</span>
+      <div class="qr-card-name">${name}</div>
+      <div class="qr-card-id">${id}</div>
+      <div class="qr-canvas-wrap" id="qrwrap-${id}"></div>
+      <div class="qr-card-btns">
+        <button class="qr-card-btn" onclick="downloadQr('${id}','${name}')">⬇ Download</button>
+        <button class="qr-card-btn primary" onclick="openPrintModal('${id}','${name}','${type.typeLabel}')">🖨 Print</button>
+      </div>`;
+    grid.appendChild(card);
+    generateQrForCard(id, name, type.typeLabel);
+  }
+  showToast(`✅ Generated ${to - from + 1} QR codes for ${type.label}`);
+}
+
+// Close print modal on backdrop click
+document.getElementById('printOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closePrintModal();
+});
+
+async function confirmQrUpdate() {
+
+  if (!currentHospitalId) {
+    showToast("Please login first");
+    return;
+  }
+
+  if (!currentQrData) {
+    showToast("No QR scanned");
+    return;
+  }
+
+  const qrId = currentQrData.id || currentQrData;
+  const selectedStatus = document.getElementById("qr-status")?.value || "Available";
+  const notes          = document.getElementById("qr-notes")?.value  || "";
+
+  // --- Detect which resource type this QR belongs to ---
+  // QR id format: BED-001, ICU-002, VENT-001, OT-001, AMB-001, OXY-001, ROOM-001, BLD-001
+  const prefixMap = {
+    BED:  'beds',
+    ICU:  'icu',
+    VENT: 'ventilators',
+    OT:   'ot',
+    AMB:  'ambulance',
+    OXY:  'oxygen',
+    ROOM: 'rooms',
+    BLD:  'blood'
+  };
+  const prefix      = qrId.split('-')[0];
+  const resourceKey = prefixMap[prefix] || null;
+
+  try {
+    // 1️⃣ Write scan record to Firestore
+    await db.collection("hospitals")
+      .doc(currentHospitalId)
+      .collection("beds")
+      .doc(qrId)
+      .set({
+        id:        qrId,
+        status:    selectedStatus,
+        notes:     notes,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+
+    // 2️⃣ Update hospitalData in memory so the dashboard reflects the scan
+    if (resourceKey && hospitalData.resources[resourceKey]) {
+      const res = hospitalData.resources[resourceKey];
+      if (selectedStatus === "Available") {
+        // Mark this unit as available → increment avail count (cap at total)
+        res.avail = Math.min(res.total, res.avail + 1);
+      } else if (selectedStatus === "Occupied" || selectedStatus === "In Use") {
+        // Mark as occupied → decrement avail count (floor at 0)
+        res.avail = Math.max(0, res.avail - 1);
+      }
+      // Persist the updated count to Firestore
+      const resPayload = {};
+      resPayload[`resources.${resourceKey}.avail`] = res.avail;
+      await db.collection("hospitals")
+        .doc(currentHospitalId)
+        .update(resPayload);
+
+      addLog(qrId, selectedStatus, notes);
+    }
+
+    // 3️⃣ Refresh the entire dashboard UI
+    applyHospitalToUI();
+    generateAlerts();
+
+    showToast("✅ QR Updated — Dashboard refreshed");
+    closeQrScanner();
+
+  } catch (error) {
+    console.error(error);
+    showToast("❌ Failed: " + error.message);
+  }
+}
+</script>
+</body>
+</html>
