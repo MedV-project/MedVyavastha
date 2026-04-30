@@ -57,3 +57,6 @@ The Fix: This was caused by a CSS class that wasn't being removed after a modal 
 The Problem: Even with the UI fixed, the data was static. We needed the hospital availability to update instantly as ambulances moved.
 
 The Fix: After hours of troubleshooting, we successfully linked the frontend to Firebase Firestore. We implemented real-time snapshots so that availability data reflects live changes without a page refresh.
+
+### ⚖️ License & Intellectual Property
+This project is proprietary. The code is public for review purposes only. No permission is granted to copy, modify, or redistribute this work.
